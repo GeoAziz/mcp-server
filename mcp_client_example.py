@@ -25,7 +25,7 @@ class MCPClient:
         Returns:
             Response data from server
         """
-        url = f"{self.base_url}/mcp/query"
+        url = f"{self.base_url}/api/v1/query"
         payload = {
             "action": action,
             "params": params or {}
@@ -60,7 +60,7 @@ class MCPClient:
         if status:
             params["status"] = status
         
-        url = f"{self.base_url}/mcp/state"
+        url = f"{self.base_url}/api/v1/state"
         if params:
             query_string = "&".join(f"{k}={v}" for k, v in params.items())
             url = f"{url}?{query_string}"
@@ -71,7 +71,7 @@ class MCPClient:
     
     def get_logs(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Get recent server logs"""
-        response = self.session.get(f"{self.base_url}/mcp/logs?limit={limit}")
+        response = self.session.get(f"{self.base_url}/api/v1/logs?limit={limit}")
         response.raise_for_status()
         return response.json().get("data")
     

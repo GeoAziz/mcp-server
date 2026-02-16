@@ -17,7 +17,7 @@ from app.auth import verify_api_key
 from app.log_manager import LogManager
 from app.database import get_db, SessionLocal
 from app.models import User, Task, Config, Log
-from app.services import user_service, task_service, config_service
+from app.services import user_service, task_service, config_service, integration_service
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -414,6 +414,24 @@ async def get_state(
     **Utilities:**
     - `calculate` - Perform calculations (params: operation, numbers)
     - `summarize_data` - Get data summary (params: none)
+
+    **GitHub (requires MCP_GITHUB_TOKEN for higher rate limits):**
+    - `github_search_repositories` - Search repos (params: query, sort?, order?, per_page?, page?)
+    - `github_search_issues` - Search issues/PRs (params: query, sort?, order?, per_page?, page?)
+    - `github_get_repository` - Repo details (params: owner, repo)
+    - `github_list_issues` - List issues (params: owner, repo, state?, per_page?, page?)
+    - `github_list_pulls` - List PRs (params: owner, repo, state?, per_page?, page?)
+
+    **Figma (requires MCP_FIGMA_TOKEN):**
+    - `figma_get_file` - File metadata (params: file_key)
+    - `figma_get_nodes` - Node metadata (params: file_key, node_ids)
+    - `figma_get_components` - File components (params: file_key)
+    - `figma_get_styles` - File styles (params: file_key)
+
+    **Playwright:**
+    - `playwright_get_title` - Page title (params: url)
+    - `playwright_get_text` - Page text (params: url, max_chars?)
+    - `playwright_screenshot` - Screenshot (params: url, full_page?, wait_ms?, viewport_width?, viewport_height?)
     
     **Examples:**
     
@@ -634,6 +652,24 @@ async def handle_action(action: str, params: Dict[str, Any], db: Session) -> Any
         # Utility
         "calculate": config_service.calculate,
         "summarize_data": task_service.summarize_data,
+
+        # GitHub
+        "github_search_repositories": integration_service.github_search_repositories,
+        "github_search_issues": integration_service.github_search_issues,
+        "github_get_repository": integration_service.github_get_repository,
+        "github_list_issues": integration_service.github_list_issues,
+        "github_list_pulls": integration_service.github_list_pulls,
+
+        # Figma
+        "figma_get_file": integration_service.figma_get_file,
+        "figma_get_nodes": integration_service.figma_get_nodes,
+        "figma_get_components": integration_service.figma_get_components,
+        "figma_get_styles": integration_service.figma_get_styles,
+
+        # Playwright
+        "playwright_get_title": integration_service.playwright_get_title,
+        "playwright_get_text": integration_service.playwright_get_text,
+        "playwright_screenshot": integration_service.playwright_screenshot,
     }
     
     handler = handlers.get(action)

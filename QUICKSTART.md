@@ -7,7 +7,8 @@ A complete MCP (Model Context Protocol) server implementation that solves the co
 ## Files Included
 
 ```
-mcp_server.py              - Main FastAPI server (persistent backend)
+mcp_cli.py                 - CLI to start/query the server (recommended)
+mcp_server.py              - Legacy monolithic server (still works)
 mcp_client_example.py      - Python client with usage examples
 context_comparison.py      - Demo showing 90%+ token reduction
 requirements.txt           - Python dependencies
@@ -28,10 +29,15 @@ This installs dependencies and shows you the context savings demo.
 ### Step 2: Start Server
 
 ```bash
-python mcp_server.py
+python mcp_cli.py start
 ```
 
 Server runs at `http://localhost:8000`
+
+**Legacy entrypoint:**
+```bash
+python mcp_server.py
+```
 
 ### Step 3: Test It
 
@@ -61,7 +67,7 @@ User query: {query}
 ```python
 # AI agent prompt referencing MCP
 prompt = """
-Query the MCP server at http://localhost:8000/mcp/query
+Query the MCP server at http://localhost:8000/api/v1/query
 
 Available actions: list_users, add_task, list_tasks, etc.
 
@@ -71,7 +77,7 @@ User query: {query}
 # Agent generates code like:
 import requests
 result = requests.post(
-    "http://localhost:8000/mcp/query",
+    "http://localhost:8000/api/v1/query",
     json={"action": "list_tasks", "params": {"assigned_to": "alice"}}
 )
 ```
@@ -105,7 +111,26 @@ tasks = client.list_tasks()  # Sees the task Agent 1 created
 summary = client.get_summary()  # Gets stats on all tasks
 ```
 
+## Terminal + IDE Quick Calls
+
+```bash
+# Start server
+python mcp_cli.py start
+
+# Query an action
+python mcp_cli.py query list_users
+
+# Add a task
+python mcp_cli.py query add_task --params '{"title": "Ship v1", "priority": "high"}'
+
+# Fetch state and logs
+python mcp_cli.py state --entity tasks --limit 5
+python mcp_cli.py logs --limit 5
+```
+
 ## VS Code Setup
+
+For the full end-to-end IDE flow, see [docs/IDE_INTEGRATION.md](docs/IDE_INTEGRATION.md).
 
 ### Auto-start MCP on VS Code Launch
 
@@ -118,7 +143,7 @@ Create `.vscode/tasks.json`:
     {
       "label": "Start MCP Server",
       "type": "shell",
-      "command": "python mcp_server.py",
+      "command": "python mcp_cli.py start",
       "isBackground": true,
       "runOptions": {
         "runOn": "folderOpen"
@@ -140,7 +165,8 @@ Create `.vscode/launch.json`:
       "name": "Debug MCP Server",
       "type": "python",
       "request": "launch",
-      "program": "${workspaceFolder}/mcp_server.py",
+      "program": "${workspaceFolder}/mcp_cli.py",
+      "args": ["start", "--reload"],
       "console": "integratedTerminal"
     }
   ]
@@ -193,7 +219,25 @@ for task in results:
 
 ### Add a Custom Tool
 
-Edit `mcp_server.py`:
+Preferred (modular app): add a service and register it in the v1 router.
+
+```python
+# app/services/notification_service.py
+async def send_notification(params: Dict[str, Any], db: Session) -> Dict[str, Any]:
+  user = params.get("user")
+  message = params.get("message")
+  if not user or not message:
+    raise ValueError("user and message are required")
+  return {"sent": True, "user": user}
+
+# app/routers/v1.py
+handlers = {
+  # ... existing handlers ...
+  "send_notification": notification_service.send_notification,
+}
+```
+
+Legacy (monolithic app): edit `mcp_server.py`:
 
 ```python
 # 1. Define handler
@@ -246,13 +290,13 @@ curl http://localhost:8000/
 ### View Recent Actions
 
 ```bash
-curl http://localhost:8000/mcp/logs?limit=10
+curl http://localhost:8000/api/v1/logs?limit=10
 ```
 
 ### Get Complete State
 
 ```bash
-curl http://localhost:8000/mcp/state
+curl http://localhost:8000/api/v1/state
 ```
 
 ## Troubleshooting
@@ -263,7 +307,7 @@ curl http://localhost:8000/mcp/state
 lsof -i :8000
 
 # Use different port
-python mcp_server.py --port 8001
+python mcp_cli.py start --port 8001
 ```
 
 **Can't connect from client:**
@@ -293,9 +337,9 @@ pip install -r requirements.txt --upgrade
 ## Next Steps
 
 1. ✅ Run `python setup.py` if you haven't
-2. ✅ Start server: `python mcp_server.py`
+2. ✅ Start server: `python mcp_cli.py start`
 3. ✅ Test client: `python mcp_client_example.py`
-4. ✅ Add your own tools to `mcp_server.py`
+4. ✅ Add your own tools to `app/services` + `app/routers/v1.py`
 5. ✅ Integrate with your AI agent/Copilot workflows
 
 ---

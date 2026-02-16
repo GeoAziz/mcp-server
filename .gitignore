@@ -20,3 +20,5 @@ dist/
 *.db
 *.db-shm
 *.db-wal
+
+./github/copilot-instructions.md

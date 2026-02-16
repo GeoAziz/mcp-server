@@ -27,15 +27,26 @@ pip install -r requirements.txt
 ### 2. Start the Server
 
 ```bash
-python mcp_server.py
+python mcp_cli.py start
 ```
 
 Server runs at: `http://localhost:8000`
+
+**Legacy entrypoint (monolithic app):**
+```bash
+python mcp_server.py
+```
 
 **Optional Environment Variables:**
 ```bash
 # Enable API key authentication (recommended for production)
 export MCP_API_KEY="your-secret-key"
+
+# GitHub API token (optional but recommended for higher rate limits)
+export MCP_GITHUB_TOKEN="your-github-token"
+
+# Figma API token (required for Figma actions)
+export MCP_FIGMA_TOKEN="your-figma-token"
 
 # Configure CORS allowed origins (default: *)
 export MCP_CORS_ORIGINS="https://yourdomain.com,https://app.yourdomain.com"
@@ -46,7 +57,7 @@ export MCP_RATE_LIMIT="200/minute"
 # Configure log retention limit (default: 1000)
 export MCP_LOG_RETENTION="5000"
 
-python mcp_server.py
+python mcp_cli.py start
 ```
 
 ### 3. Test with Client
@@ -166,6 +177,24 @@ The MCP Server supports API versioning to ensure backward compatibility and allo
 **Utilities:**
 - `calculate` - Perform calculations
 - `summarize_data` - Get data summary
+
+**GitHub:**
+- `github_search_repositories` - Search repos
+- `github_search_issues` - Search issues/PRs
+- `github_get_repository` - Repo details
+- `github_list_issues` - List issues
+- `github_list_pulls` - List PRs
+
+**Figma:**
+- `figma_get_file` - File metadata
+- `figma_get_nodes` - Node metadata
+- `figma_get_components` - File components
+- `figma_get_styles` - File styles
+
+**Playwright:**
+- `playwright_get_title` - Page title
+- `playwright_get_text` - Page text
+- `playwright_screenshot` - Screenshot
 
 ## 💡 Usage Examples
 
@@ -473,6 +502,9 @@ POST /api/v1/query
 
 ## 🔧 VS Code Integration
 
+For a full end-to-end walkthrough (start server → IDE → tool calls), see [docs/IDE_INTEGRATION.md](docs/IDE_INTEGRATION.md).
+For the integration action catalog, see [docs/MCP_INTEGRATIONS.md](docs/MCP_INTEGRATIONS.md).
+
 ### Option 1: Use with Copilot/GitHub Copilot Chat
 
 Your AI assistant can call the MCP server directly from generated code:
@@ -503,7 +535,7 @@ Create `.vscode/tasks.json`:
       "label": "Start MCP Server",
       "type": "shell",
       "command": "python",
-      "args": ["mcp_server.py"],
+      "args": ["mcp_cli.py", "start"],
       "isBackground": true,
       "problemMatcher": []
     }
@@ -525,7 +557,8 @@ Create `.vscode/launch.json`:
       "name": "MCP Server",
       "type": "python",
       "request": "launch",
-      "program": "${workspaceFolder}/mcp_server.py",
+      "program": "${workspaceFolder}/mcp_cli.py",
+      "args": ["start", "--reload"],
       "console": "integratedTerminal"
     }
   ]
@@ -604,7 +637,25 @@ curl http://localhost:8000/
 
 ## 🔄 Adding Custom Tools
 
-Add new actions to `mcp_server.py`:
+Preferred (modular app): add a service and register it in the v1 router.
+
+```python
+# app/services/notification_service.py
+async def send_notification(params: Dict[str, Any], db: Session) -> Dict[str, Any]:
+  user = params.get("user")
+  message = params.get("message")
+  if not user or not message:
+    raise ValueError("user and message are required")
+  return {"sent": True, "user": user}
+
+# app/routers/v1.py
+handlers = {
+  # ... existing handlers ...
+  "send_notification": notification_service.send_notification,
+}
+```
+
+Legacy (monolithic app): add new actions to `mcp_server.py`:
 
 ```python
 # 1. Add handler function
@@ -686,10 +737,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY mcp_server.py .
+COPY . .
 
 EXPOSE 8000
-CMD ["python", "mcp_server.py"]
+CMD ["python", "mcp_cli.py", "start", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
 Build and run:
@@ -712,7 +763,7 @@ After=network.target
 Type=simple
 User=youruser
 WorkingDirectory=/path/to/mcp
-ExecStart=/usr/bin/python3 /path/to/mcp/mcp_server.py
+ExecStart=/usr/bin/python3 /path/to/mcp/mcp_cli.py start
 Restart=always
 
 [Install]
@@ -734,7 +785,7 @@ API key authentication is built-in and can be enabled by setting an environment 
 
 ```bash
 export MCP_API_KEY="your-secret-key-here"
-python mcp_server.py
+python mcp_cli.py start
 ```
 
 Then include the API key in requests:
@@ -758,7 +809,7 @@ CORS is enabled by default with wildcard origins for development. For production
 ```bash
 # Allow specific origins (comma-separated)
 export MCP_CORS_ORIGINS="https://yourdomain.com,https://app.yourdomain.com"
-python mcp_server.py
+python mcp_cli.py start
 ```
 
 The CORS middleware supports:
@@ -774,7 +825,7 @@ Rate limiting is automatically enabled to protect against abuse:
 ```bash
 # Configure rate limit (default: 100/minute)
 export MCP_RATE_LIMIT="200/minute"
-python mcp_server.py
+python mcp_cli.py start
 ```
 
 Supported formats:
