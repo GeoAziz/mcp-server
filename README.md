@@ -509,13 +509,52 @@ Rate limiting applies to all endpoints and is enforced per IP address.
 
 ## 🧪 Testing
 
-```bash
-# Install pytest
-pip install pytest pytest-asyncio httpx
+The project includes a comprehensive pytest-based test suite covering all endpoints and operations.
 
-# Run tests
-pytest test_mcp_server.py
+### Run Tests
+
+```bash
+# Install test dependencies
+pip install -r requirements.txt
+
+# Run all tests
+pytest
+
+# Run with verbose output
+pytest -v
+
+# Run specific test file
+pytest tests/test_users.py
+
+# Run with coverage report
+pytest --cov=. --cov-report=html
 ```
+
+### Test Coverage
+
+The test suite includes 78+ tests covering:
+
+- **Endpoints**: Health check, state, query, logs, reset
+- **User Operations**: List, add, remove, get user details
+- **Task Operations**: CRUD, search, filtering
+- **Config Operations**: Get and update configuration
+- **Authentication**: API key validation and security
+- **Error Handling**: Invalid inputs, missing parameters, edge cases
+
+### Test Structure
+
+```
+tests/
+├── conftest.py              # Pytest fixtures and configuration
+├── test_endpoints.py        # Core endpoint tests
+├── test_users.py            # User management tests
+├── test_tasks.py            # Task management tests
+├── test_config.py           # Configuration tests
+├── test_auth.py             # Authentication tests
+└── test_error_handling.py   # Error handling and edge cases
+```
+
+All tests use an in-memory SQLite database for speed and isolation. See `tests/README.md` for detailed documentation.
 
 ## 📝 License
 
