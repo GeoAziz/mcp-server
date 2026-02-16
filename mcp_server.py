@@ -188,6 +188,8 @@ async def get_state(
                 # Apply status filter if provided
                 if status:
                     data = [t for t in data if t.get("status") == status]
+                # Store total after filtering but before pagination
+                total_filtered = len(data)
                 # Apply pagination
                 if offset is not None:
                     data = data[offset:]
@@ -195,7 +197,7 @@ async def get_state(
                     data = data[:limit]
                 filtered_data = {
                     "tasks": data,
-                    "total": len(memory.tasks),
+                    "total": total_filtered,
                     "count": len(data)
                 }
                 if status:
@@ -242,12 +244,6 @@ async def get_state(
                 if lim is not None:
                     tasks_data = tasks_data[:lim]
                 filtered_data["tasks"] = tasks_data
-                
-                # Apply to projects
-                projects_data = memory.projects[off:]
-                if lim is not None:
-                    projects_data = projects_data[:lim]
-                filtered_data["projects"] = projects_data
         
         logger.info(f"Filtered state requested - entity: {entity}, limit: {limit}, offset: {offset}, status: {status}")
         return QueryResponse(
