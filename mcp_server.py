@@ -129,16 +129,133 @@ async def root():
     }
 
 @app.get("/mcp/state")
-async def get_state(_api_key: Optional[str] = Depends(verify_api_key)):
-    """Get complete memory snapshot"""
+async def get_state(
+    entity: Optional[str] = None,
+    limit: Optional[int] = None,
+    offset: Optional[int] = None,
+    status: Optional[str] = None,
+    _api_key: Optional[str] = Depends(verify_api_key)
+):
+    """
+    Get memory snapshot with optional filtering and pagination
+    
+    Query Parameters:
+    - entity: Filter by entity type (users | tasks | config | logs)
+    - limit: Maximum number of items to return
+    - offset: Number of items to skip (for pagination)
+    - status: Filter tasks by status (only applies when entity=tasks)
+    """
     try:
-        snapshot = memory.get_snapshot()
-        logger.info("State snapshot requested")
+        # Validate entity parameter if provided
+        valid_entities = ["users", "tasks", "config", "logs"]
+        if entity and entity not in valid_entities:
+            logger.warning(f"Invalid entity requested: {entity}")
+            return QueryResponse(
+                success=False,
+                data={},
+                message=f"Invalid entity '{entity}'. Valid options: {', '.join(valid_entities)}"
+            )
+        
+        # If no parameters provided, return full snapshot (backward compatibility)
+        if entity is None and limit is None and offset is None and status is None:
+            snapshot = memory.get_snapshot()
+            logger.info("Full state snapshot requested")
+            return QueryResponse(
+                success=True,
+                data=snapshot,
+                message="Memory snapshot retrieved"
+            )
+        
+        # Build filtered response
+        filtered_data = {}
+        
+        if entity:
+            # Filter by specific entity
+            if entity == "users":
+                data = memory.users
+                if offset is not None:
+                    data = data[offset:]
+                if limit is not None:
+                    data = data[:limit]
+                filtered_data = {
+                    "users": data,
+                    "total": len(memory.users),
+                    "count": len(data)
+                }
+            
+            elif entity == "tasks":
+                data = memory.tasks
+                # Apply status filter if provided
+                if status:
+                    data = [t for t in data if t.get("status") == status]
+                # Apply pagination
+                if offset is not None:
+                    data = data[offset:]
+                if limit is not None:
+                    data = data[:limit]
+                filtered_data = {
+                    "tasks": data,
+                    "total": len(memory.tasks),
+                    "count": len(data)
+                }
+                if status:
+                    filtered_data["filtered_by_status"] = status
+            
+            elif entity == "config":
+                filtered_data = {
+                    "config": memory.config
+                }
+            
+            elif entity == "logs":
+                data = memory.agent_logs
+                if offset is not None:
+                    data = data[offset:]
+                if limit is not None:
+                    data = data[:limit]
+                filtered_data = {
+                    "logs": data,
+                    "total": len(memory.agent_logs),
+                    "count": len(data)
+                }
+        else:
+            # No entity specified, but limit/offset/status provided
+            # Apply to all applicable entities
+            snapshot = memory.get_snapshot()
+            filtered_data = snapshot.copy()
+            
+            # Apply limit/offset to lists
+            if limit is not None or offset is not None:
+                off = offset or 0
+                lim = limit
+                
+                # Apply to users
+                users_data = memory.users[off:]
+                if lim is not None:
+                    users_data = users_data[:lim]
+                filtered_data["users"] = users_data
+                
+                # Apply to tasks (with status filter if provided)
+                tasks_data = memory.tasks
+                if status:
+                    tasks_data = [t for t in tasks_data if t.get("status") == status]
+                tasks_data = tasks_data[off:]
+                if lim is not None:
+                    tasks_data = tasks_data[:lim]
+                filtered_data["tasks"] = tasks_data
+                
+                # Apply to projects
+                projects_data = memory.projects[off:]
+                if lim is not None:
+                    projects_data = projects_data[:lim]
+                filtered_data["projects"] = projects_data
+        
+        logger.info(f"Filtered state requested - entity: {entity}, limit: {limit}, offset: {offset}, status: {status}")
         return QueryResponse(
             success=True,
-            data=snapshot,
-            message="Memory snapshot retrieved"
+            data=filtered_data,
+            message="Filtered memory snapshot retrieved"
         )
+    
     except Exception as e:
         logger.error(f"Error getting state: {e}")
         raise HTTPException(status_code=500, detail=str(e))
