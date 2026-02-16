@@ -15,6 +15,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from auth import verify_api_key
+from log_manager import LogManager
 
 # Configure logging
 logging.basicConfig(
@@ -67,7 +68,7 @@ class MemoryStore:
         self.users: List[str] = []
         self.tasks: List[Dict[str, Any]] = []
         self.projects: List[Dict[str, Any]] = []
-        self.agent_logs: List[Dict[str, Any]] = []
+        self.log_manager = LogManager()  # Use new LogManager
         self.config: Dict[str, Any] = {
             "max_tasks": 100,
             "default_priority": "medium"
@@ -86,22 +87,18 @@ class MemoryStore:
                 "total_users": len(self.users),
                 "total_tasks": len(self.tasks),
                 "total_projects": len(self.projects),
-                "total_logs": len(self.agent_logs)
+                "total_logs": self.log_manager.get_log_count()
             }
         }
     
-    def log_action(self, action: str, params: Dict[str, Any], result: Any):
-        """Log agent actions for observability"""
-        self.agent_logs.append({
-            "timestamp": datetime.utcnow().isoformat(),
-            "action": action,
+    def log_action(self, action: str, params: Dict[str, Any], result: Any, status: str = "success"):
+        """Log agent actions for observability using structured logging"""
+        # Truncate long results for payload
+        payload = {
             "params": params,
             "result": str(result)[:200]  # Truncate long results
-        })
-        
-        # Keep only last 1000 logs
-        if len(self.agent_logs) > 1000:
-            self.agent_logs = self.agent_logs[-1000:]
+        }
+        self.log_manager.log(action=action, payload=payload, status=status)
 
 # Initialize memory
 memory = MemoryStore()
@@ -233,14 +230,10 @@ async def get_state(
                 }
             
             elif entity == "logs":
-                data = memory.agent_logs
-                if offset is not None:
-                    data = data[offset:]
-                if limit is not None:
-                    data = data[:limit]
+                data = memory.log_manager.get_logs(limit=limit, offset=offset or 0)
                 filtered_data = {
                     "logs": data,
-                    "total": len(memory.agent_logs),
+                    "total": memory.log_manager.get_log_count(),
                     "count": len(data)
                 }
         else:
@@ -307,8 +300,8 @@ async def query(request: Request, body: QueryRequest, _api_key: Optional[str] = 
         # Route to appropriate handler
         result = await handle_action(action, params)
         
-        # Log the action
-        memory.log_action(action, params, result)
+        # Log the action with success status
+        memory.log_action(action, params, result, status="success")
         
         return QueryResponse(
             success=True,
@@ -318,9 +311,13 @@ async def query(request: Request, body: QueryRequest, _api_key: Optional[str] = 
         
     except ValueError as e:
         logger.warning(f"Invalid action: {e}")
+        # Log the failed action
+        memory.log_action(body.action, body.params or {}, str(e), status="error")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error processing query: {e}")
+        # Log the failed action
+        memory.log_action(body.action, body.params or {}, str(e), status="error")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/mcp/logs")
@@ -328,7 +325,7 @@ async def query(request: Request, body: QueryRequest, _api_key: Optional[str] = 
 async def get_logs(request: Request, limit: int = 100, _api_key: Optional[str] = Depends(verify_api_key)):
     """Get recent agent action logs"""
     try:
-        logs = memory.agent_logs[-limit:]
+        logs = memory.log_manager.get_logs(limit=limit)
         return QueryResponse(
             success=True,
             data=logs,
