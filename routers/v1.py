@@ -95,22 +95,143 @@ def log_action(action: str, params: Dict[str, Any], result: Any, status: str = "
 # ============================================================================
 
 class QueryRequest(BaseModel):
-    """Standard query request format"""
-    action: str = Field(..., description="Action to perform")
-    params: Optional[Dict[str, Any]] = Field(default={}, description="Action parameters")
+    """
+    Standard query request format for performing actions
+    
+    The query endpoint uses an action-based architecture where you specify
+    an action name and provide the necessary parameters.
+    """
+    action: str = Field(
+        ..., 
+        description="Name of the action to perform",
+        examples=["list_users", "add_task", "search_tasks"]
+    )
+    params: Optional[Dict[str, Any]] = Field(
+        default={}, 
+        description="Parameters for the action (varies by action type)",
+        examples=[
+            {"username": "alice"},
+            {"title": "Build feature", "priority": "high"},
+            {"query": "database"}
+        ]
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "action": "list_users",
+                    "params": {}
+                },
+                {
+                    "action": "add_user",
+                    "params": {
+                        "username": "alice",
+                        "role": "admin"
+                    }
+                },
+                {
+                    "action": "add_task",
+                    "params": {
+                        "title": "Implement API documentation",
+                        "description": "Add OpenAPI/Swagger docs",
+                        "priority": "high",
+                        "assigned_to": "alice"
+                    }
+                },
+                {
+                    "action": "search_tasks",
+                    "params": {
+                        "query": "documentation"
+                    }
+                }
+            ]
+        }
 
 class QueryResponse(BaseModel):
-    """Standard query response format"""
-    success: bool
-    data: Any
-    message: Optional[str] = None
-    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    """
+    Standard response format for all API endpoints
+    
+    All successful and failed operations return this consistent structure.
+    """
+    success: bool = Field(
+        ..., 
+        description="Whether the operation was successful",
+        examples=[True]
+    )
+    data: Any = Field(
+        ..., 
+        description="Response data (type varies by endpoint)",
+        examples=[
+            {"users": ["alice", "bob"]},
+            {"username": "alice", "added": True}
+        ]
+    )
+    message: Optional[str] = Field(
+        None, 
+        description="Human-readable message about the operation",
+        examples=["Action 'list_users' completed successfully"]
+    )
+    timestamp: str = Field(
+        default_factory=lambda: datetime.utcnow().isoformat(),
+        description="ISO 8601 timestamp when the response was generated",
+        examples=["2026-02-16T16:00:00.000000"]
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "success": True,
+                    "data": ["alice", "bob", "charlie"],
+                    "message": "Action 'list_users' completed successfully",
+                    "timestamp": "2026-02-16T16:00:00.000000"
+                }
+            ]
+        }
 
 # ============================================================================
 # V1 ENDPOINTS
 # ============================================================================
 
-@router.get("/state")
+@router.get(
+    "/state",
+    summary="Get Memory State",
+    description="""
+    Get memory snapshot with optional filtering and pagination.
+    
+    This endpoint provides access to all stored data including users, tasks, configuration, and logs.
+    
+    **Query Parameters:**
+    - `entity`: Filter by entity type (`users` | `tasks` | `config` | `logs`)
+    - `limit`: Maximum number of items to return
+    - `offset`: Number of items to skip (for pagination)
+    - `status`: Filter tasks by status (only applies when `entity=tasks`)
+    
+    **Examples:**
+    
+    Get full state:
+    ```bash
+    curl http://localhost:8000/api/v1/state
+    ```
+    
+    Get only tasks:
+    ```bash
+    curl http://localhost:8000/api/v1/state?entity=tasks
+    ```
+    
+    Get pending tasks with pagination:
+    ```bash
+    curl "http://localhost:8000/api/v1/state?entity=tasks&status=pending&limit=10"
+    ```
+    
+    Get users (page 2, 20 per page):
+    ```bash
+    curl "http://localhost:8000/api/v1/state?entity=users&offset=20&limit=20"
+    ```
+    """,
+    response_description="Memory snapshot with requested data"
+)
 @limiter.limit(RATE_LIMIT)
 async def get_state(
     request: Request,
@@ -264,7 +385,86 @@ async def get_state(
         logger.error(f"Error getting state: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/query")
+@router.post(
+    "/query",
+    summary="Execute Action",
+    description="""
+    Main query endpoint - handles all agent actions using an action-based architecture.
+    
+    **Supported Actions:**
+    
+    **User Management:**
+    - `list_users` - Get all users
+    - `add_user` - Add new user (params: username, role?, metadata?)
+    - `remove_user` - Remove user (params: username)
+    - `get_user` - Get user details (params: username)
+    
+    **Task Management:**
+    - `list_tasks` - List all tasks (params: status?, assigned_to?)
+    - `add_task` - Create new task (params: title, description?, priority?, assigned_to?)
+    - `update_task` - Update task (params: task_id, title?, description?, priority?, status?, assigned_to?)
+    - `delete_task` - Delete task (params: task_id)
+    - `search_tasks` - Search tasks (params: query)
+    
+    **Configuration:**
+    - `get_config` - Get config values (params: key?)
+    - `update_config` - Update config (params: key, value)
+    
+    **Utilities:**
+    - `calculate` - Perform calculations (params: operation, numbers)
+    - `summarize_data` - Get data summary (params: none)
+    
+    **Examples:**
+    
+    List all users:
+    ```bash
+    curl -X POST http://localhost:8000/api/v1/query \\
+      -H "Content-Type: application/json" \\
+      -d '{"action": "list_users", "params": {}}'
+    ```
+    
+    Add a new user:
+    ```bash
+    curl -X POST http://localhost:8000/api/v1/query \\
+      -H "Content-Type: application/json" \\
+      -d '{
+        "action": "add_user",
+        "params": {
+          "username": "alice",
+          "role": "admin"
+        }
+      }'
+    ```
+    
+    Create a task:
+    ```bash
+    curl -X POST http://localhost:8000/api/v1/query \\
+      -H "Content-Type: application/json" \\
+      -d '{
+        "action": "add_task",
+        "params": {
+          "title": "Implement feature X",
+          "description": "Build the new feature",
+          "priority": "high",
+          "assigned_to": "alice"
+        }
+      }'
+    ```
+    
+    Search tasks:
+    ```bash
+    curl -X POST http://localhost:8000/api/v1/query \\
+      -H "Content-Type: application/json" \\
+      -d '{
+        "action": "search_tasks",
+        "params": {
+          "query": "feature"
+        }
+      }'
+    ```
+    """,
+    response_description="Action result with success status and data"
+)
 @limiter.limit(RATE_LIMIT)
 async def query(request: Request, body: QueryRequest, _api_key: Optional[str] = Depends(verify_api_key), db: Session = Depends(get_db)):
     """
@@ -311,7 +511,40 @@ async def query(request: Request, body: QueryRequest, _api_key: Optional[str] = 
         log_action(body.action, body.params or {}, str(e), status="error", db=db)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/logs")
+@router.get(
+    "/logs",
+    summary="Get Action Logs",
+    description="""
+    Get recent agent action logs with structured information about all operations.
+    
+    Each log entry includes:
+    - `timestamp` - When the action occurred (ISO 8601 format)
+    - `action` - The action that was performed
+    - `payload` - Parameters and truncated result
+    - `status` - success or error
+    
+    Logs are automatically trimmed based on the retention limit (configurable via `MCP_LOG_RETENTION` environment variable).
+    
+    **Examples:**
+    
+    Get last 10 logs:
+    ```bash
+    curl http://localhost:8000/api/v1/logs?limit=10
+    ```
+    
+    Get last 100 logs:
+    ```bash
+    curl http://localhost:8000/api/v1/logs?limit=100
+    ```
+    
+    With authentication:
+    ```bash
+    curl http://localhost:8000/api/v1/logs?limit=20 \\
+      -H "X-API-Key: your-secret-key"
+    ```
+    """,
+    response_description="List of recent action logs"
+)
 @limiter.limit(RATE_LIMIT)
 async def get_logs(request: Request, limit: int = 100, _api_key: Optional[str] = Depends(verify_api_key), db: Session = Depends(get_db)):
     """Get recent agent action logs"""
@@ -326,7 +559,30 @@ async def get_logs(request: Request, limit: int = 100, _api_key: Optional[str] =
         logger.error(f"Error getting logs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/reset")
+@router.post(
+    "/reset",
+    summary="Reset Memory",
+    description="""
+    Reset all memory including users, tasks, config, and logs.
+    
+    **⚠️ WARNING:** This operation is destructive and cannot be undone!
+    
+    All data will be permanently deleted including:
+    - All users
+    - All tasks
+    - All configuration entries
+    - All action logs
+    
+    After reset, default configuration values will be re-initialized.
+    
+    **Example:**
+    ```bash
+    curl -X POST http://localhost:8000/api/v1/reset \\
+      -H "X-API-Key: your-secret-key"
+    ```
+    """,
+    response_description="Confirmation of memory reset"
+)
 @limiter.limit(RATE_LIMIT)
 async def reset_memory(request: Request, _api_key: Optional[str] = Depends(verify_api_key), db: Session = Depends(get_db)):
     """Reset all memory (use with caution!)"""
