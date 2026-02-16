@@ -48,7 +48,18 @@ def test_rate_limit_enforcement():
 
 if __name__ == "__main__":
     try:
+        # Check if server is running
         response = requests.get(BASE_URL, timeout=5)
+        if response.status_code != 200:
+            print("❌ Server is not running properly. Start it with: python mcp_server.py")
+            exit(1)
         test_rate_limit_enforcement()
+    except requests.exceptions.ConnectionError:
+        print("❌ Cannot connect to server. Start it with: python mcp_server.py")
+        exit(1)
+    except requests.exceptions.Timeout:
+        print("❌ Server timeout. Please check if server is running properly.")
+        exit(1)
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"❌ Error: {e}")
+        exit(1)

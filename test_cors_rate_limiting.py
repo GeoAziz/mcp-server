@@ -33,7 +33,11 @@ def test_cors_headers():
     
     # Verify CORS is enabled
     assert "access-control-allow-origin" in response.headers, "Missing CORS allow-origin header"
-    print("   ✅ CORS headers present")
+    
+    # Verify the CORS origin value is either wildcard or matches request origin
+    cors_origin = response.headers.get("access-control-allow-origin")
+    assert cors_origin in ["*", "http://example.com"], f"Unexpected CORS origin: {cors_origin}"
+    print("   ✅ CORS headers present and valid")
     
     # Test with actual GET request
     response = requests.get(

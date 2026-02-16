@@ -52,7 +52,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -282,7 +282,7 @@ async def get_state(
 
 @app.post("/mcp/query")
 @limiter.limit(RATE_LIMIT)
-async def query(request: Request, query_request: QueryRequest, _api_key: Optional[str] = Depends(verify_api_key)):
+async def query(request: Request, body: QueryRequest, _api_key: Optional[str] = Depends(verify_api_key)):
     """
     Main query endpoint - handles all agent actions
     
@@ -299,8 +299,8 @@ async def query(request: Request, query_request: QueryRequest, _api_key: Optiona
     - search_tasks
     """
     try:
-        action = query_request.action
-        params = query_request.params or {}
+        action = body.action
+        params = body.params or {}
         
         logger.info(f"Query received - Action: {action}, Params: {params}")
         
