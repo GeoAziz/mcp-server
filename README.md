@@ -32,6 +32,20 @@ python mcp_server.py
 
 Server runs at: `http://localhost:8000`
 
+**Optional Environment Variables:**
+```bash
+# Enable API key authentication (recommended for production)
+export MCP_API_KEY="your-secret-key"
+
+# Configure CORS allowed origins (default: *)
+export MCP_CORS_ORIGINS="https://yourdomain.com,https://app.yourdomain.com"
+
+# Configure rate limit (default: 100/minute)
+export MCP_RATE_LIMIT="200/minute"
+
+python mcp_server.py
+```
+
 ### 3. Test with Client
 
 ```bash
@@ -382,41 +396,69 @@ sudo systemctl start mcp-server
 
 ## 🔐 Security
 
-### Add API Key Authentication
+### API Key Authentication
 
-```python
-from fastapi import Header, HTTPException
+API key authentication is built-in and can be enabled by setting an environment variable:
 
-async def verify_api_key(x_api_key: str = Header(...)):
-    if x_api_key != "your-secret-key":
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    return x_api_key
-
-# Use in endpoint
-@app.post("/mcp/query")
-async def query(request: QueryRequest, api_key: str = Depends(verify_api_key)):
-    # ... existing code ...
+```bash
+export MCP_API_KEY="your-secret-key-here"
+python mcp_server.py
 ```
 
-### Restrict CORS in Production
+Then include the API key in requests:
 
-```python
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://yourdomain.com"],  # Specific domains only
-    allow_credentials=True,
-    allow_methods=["GET", "POST"],
-    allow_headers=["*"],
-)
+```bash
+curl http://localhost:8000/mcp/state \
+  -H "X-API-Key: your-secret-key-here"
 ```
+
+If `MCP_API_KEY` is not set, authentication is disabled (useful for development).
+
+### CORS Configuration
+
+CORS is enabled by default with wildcard origins for development. For production, restrict to specific domains:
+
+```bash
+# Allow specific origins (comma-separated)
+export MCP_CORS_ORIGINS="https://yourdomain.com,https://app.yourdomain.com"
+python mcp_server.py
+```
+
+The CORS middleware supports:
+- Configurable allowed origins
+- Credentials support
+- Standard HTTP methods (GET, POST, PUT, DELETE, OPTIONS)
+- All headers allowed
+
+### Rate Limiting
+
+Rate limiting is automatically enabled to protect against abuse:
+
+```bash
+# Configure rate limit (default: 100/minute)
+export MCP_RATE_LIMIT="200/minute"
+python mcp_server.py
+```
+
+Supported formats:
+- `100/minute` - 100 requests per minute
+- `10/second` - 10 requests per second
+- `1000/hour` - 1000 requests per hour
+
+When rate limit is exceeded, the API returns:
+- Status: `429 Too Many Requests`
+- Response: `{"error":"Rate limit exceeded: 100 per 1 minute"}`
+
+Rate limiting applies to all endpoints and is enforced per IP address.
 
 ## 📈 Performance Tips
 
 1. **Use connection pooling** for database connections
 2. **Add caching** for frequently accessed data (Redis)
-3. **Implement rate limiting** to prevent abuse
+3. **Configure rate limiting** based on your traffic patterns (see Security section)
 4. **Use async handlers** for I/O operations
 5. **Add pagination** for large result sets
+6. **Set appropriate CORS origins** to reduce unauthorized requests
 
 ## 🧪 Testing
 

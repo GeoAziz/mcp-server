@@ -3,13 +3,17 @@ MCP Server - Model Context Protocol Server
 A persistent backend service for AI agents to reduce context window bloat
 """
 
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 import uvicorn
 import logging
+import os
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from auth import verify_api_key
 
 # Configure logging
@@ -19,6 +23,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
+# Get rate limit from environment or use default
+RATE_LIMIT = os.getenv("MCP_RATE_LIMIT", "100/minute")
+logger.info(f"Rate limit configured: {RATE_LIMIT}")
+
+# Get CORS origins from environment or use default
+CORS_ORIGINS = os.getenv("MCP_CORS_ORIGINS", "*").split(",")
+logger.info(f"CORS origins configured: {CORS_ORIGINS}")
+
 # Initialize FastAPI app
 app = FastAPI(
     title="MCP Server",
@@ -26,12 +41,18 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware (adjust origins for production)
+# Add rate limiter to app state
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Add CORS middleware
+# Configure via MCP_CORS_ORIGINS environment variable (comma-separated)
+# Example: MCP_CORS_ORIGINS="https://example.com,https://app.example.com"
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Restrict this in production
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -119,7 +140,8 @@ class UserCreate(BaseModel):
 # ============================================================================
 
 @app.get("/")
-async def root():
+@limiter.limit(RATE_LIMIT)
+async def root(request: Request):
     """Health check endpoint"""
     return {
         "status": "running",
@@ -129,7 +151,9 @@ async def root():
     }
 
 @app.get("/mcp/state")
+@limiter.limit(RATE_LIMIT)
 async def get_state(
+    request: Request,
     entity: Optional[str] = None,
     limit: Optional[int] = None,
     offset: Optional[int] = None,
@@ -257,7 +281,8 @@ async def get_state(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/mcp/query")
-async def query(request: QueryRequest, _api_key: Optional[str] = Depends(verify_api_key)):
+@limiter.limit(RATE_LIMIT)
+async def query(request: Request, query_request: QueryRequest, _api_key: Optional[str] = Depends(verify_api_key)):
     """
     Main query endpoint - handles all agent actions
     
@@ -274,8 +299,8 @@ async def query(request: QueryRequest, _api_key: Optional[str] = Depends(verify_
     - search_tasks
     """
     try:
-        action = request.action
-        params = request.params or {}
+        action = query_request.action
+        params = query_request.params or {}
         
         logger.info(f"Query received - Action: {action}, Params: {params}")
         
@@ -299,7 +324,8 @@ async def query(request: QueryRequest, _api_key: Optional[str] = Depends(verify_
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/mcp/logs")
-async def get_logs(limit: int = 100, _api_key: Optional[str] = Depends(verify_api_key)):
+@limiter.limit(RATE_LIMIT)
+async def get_logs(request: Request, limit: int = 100, _api_key: Optional[str] = Depends(verify_api_key)):
     """Get recent agent action logs"""
     try:
         logs = memory.agent_logs[-limit:]
@@ -313,7 +339,8 @@ async def get_logs(limit: int = 100, _api_key: Optional[str] = Depends(verify_ap
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/mcp/reset")
-async def reset_memory(_api_key: Optional[str] = Depends(verify_api_key)):
+@limiter.limit(RATE_LIMIT)
+async def reset_memory(request: Request, _api_key: Optional[str] = Depends(verify_api_key)):
     """Reset all memory (use with caution!)"""
     global memory
     logger.warning("Memory reset requested")
