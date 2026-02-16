@@ -4,8 +4,12 @@ Provides API key authentication for protected endpoints
 """
 
 import os
+import secrets
+import logging
 from fastapi import Header, HTTPException, status
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 def get_api_key_from_env() -> Optional[str]:
@@ -16,7 +20,7 @@ def get_api_key_from_env() -> Optional[str]:
     return os.getenv("MCP_API_KEY")
 
 
-async def verify_api_key(x_api_key: str = Header(None)) -> str:
+async def verify_api_key(x_api_key: Optional[str] = Header(None)) -> Optional[str]:
     """
     FastAPI dependency for API key authentication.
     
@@ -26,7 +30,7 @@ async def verify_api_key(x_api_key: str = Header(None)) -> str:
         x_api_key: The API key from the X-API-Key header
         
     Returns:
-        The validated API key
+        The validated API key, or None if authentication is disabled
         
     Raises:
         HTTPException: 401 if X-API-Key header is missing
@@ -36,6 +40,10 @@ async def verify_api_key(x_api_key: str = Header(None)) -> str:
     
     # If no API key is configured, skip authentication
     if expected_api_key is None:
+        logger.warning(
+            "MCP_API_KEY environment variable not set - authentication is disabled. "
+            "Set MCP_API_KEY to enable API key authentication."
+        )
         return None
     
     # Check if X-API-Key header is provided
@@ -45,8 +53,8 @@ async def verify_api_key(x_api_key: str = Header(None)) -> str:
             detail="Missing X-API-Key header"
         )
     
-    # Validate the API key
-    if x_api_key != expected_api_key:
+    # Validate the API key using constant-time comparison to prevent timing attacks
+    if not secrets.compare_digest(x_api_key, expected_api_key):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid API key"

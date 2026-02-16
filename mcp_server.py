@@ -129,7 +129,7 @@ async def root():
     }
 
 @app.get("/mcp/state")
-async def get_state(api_key: str = Depends(verify_api_key)):
+async def get_state(api_key: Optional[str] = Depends(verify_api_key)):
     """Get complete memory snapshot"""
     try:
         snapshot = memory.get_snapshot()
@@ -144,7 +144,7 @@ async def get_state(api_key: str = Depends(verify_api_key)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/mcp/query")
-async def query(request: QueryRequest, api_key: str = Depends(verify_api_key)):
+async def query(request: QueryRequest, api_key: Optional[str] = Depends(verify_api_key)):
     """
     Main query endpoint - handles all agent actions
     
@@ -186,7 +186,7 @@ async def query(request: QueryRequest, api_key: str = Depends(verify_api_key)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/mcp/logs")
-async def get_logs(limit: int = 100, api_key: str = Depends(verify_api_key)):
+async def get_logs(limit: int = 100, api_key: Optional[str] = Depends(verify_api_key)):
     """Get recent agent action logs"""
     try:
         logs = memory.agent_logs[-limit:]
@@ -200,7 +200,7 @@ async def get_logs(limit: int = 100, api_key: str = Depends(verify_api_key)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/mcp/reset")
-async def reset_memory(api_key: str = Depends(verify_api_key)):
+async def reset_memory(api_key: Optional[str] = Depends(verify_api_key)):
     """Reset all memory (use with caution!)"""
     global memory
     logger.warning("Memory reset requested")
