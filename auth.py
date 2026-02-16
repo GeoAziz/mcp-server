@@ -11,6 +11,9 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# Flag to track if we've already logged the warning about disabled auth
+_auth_disabled_warning_logged = False
+
 
 def get_api_key_from_env() -> Optional[str]:
     """
@@ -36,14 +39,19 @@ async def verify_api_key(x_api_key: Optional[str] = Header(None)) -> Optional[st
         HTTPException: 401 if X-API-Key header is missing
         HTTPException: 403 if X-API-Key header is invalid
     """
+    global _auth_disabled_warning_logged
+    
     expected_api_key = get_api_key_from_env()
     
     # If no API key is configured, skip authentication
     if expected_api_key is None:
-        logger.warning(
-            "MCP_API_KEY environment variable not set - authentication is disabled. "
-            "Set MCP_API_KEY to enable API key authentication."
-        )
+        # Log warning only once to avoid excessive logging
+        if not _auth_disabled_warning_logged:
+            logger.warning(
+                "MCP_API_KEY environment variable not set - authentication is disabled. "
+                "Set MCP_API_KEY to enable API key authentication."
+            )
+            _auth_disabled_warning_logged = True
         return None
     
     # Check if X-API-Key header is provided
