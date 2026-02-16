@@ -5,18 +5,35 @@ Test cases for LogManager - Structured logging with configurable retention
 import sys
 import os
 from datetime import datetime
+import tempfile
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from log_manager import LogManager
+from database import SessionLocal, create_engine, Base
+from sqlalchemy.orm import sessionmaker
+
+
+def get_test_db():
+    """Create a temporary test database"""
+    # Create a temporary database for testing
+    temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+    db_url = f"sqlite:///{temp_db.name}"
+    
+    engine = create_engine(db_url, connect_args={"check_same_thread": False})
+    Base.metadata.create_all(bind=engine)
+    TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    
+    return TestSessionLocal, temp_db.name
 
 
 def test_log_structure():
     """Test that logs have correct structure with all required fields"""
     print("\n📝 Testing log structure...")
     
-    log_mgr = LogManager(max_logs=100)
+    TestSessionLocal, db_file = get_test_db()
+    log_mgr = LogManager(db_session_factory=TestSessionLocal, max_logs=100)
     
     # Create a log entry
     entry = log_mgr.log(
@@ -44,6 +61,9 @@ def test_log_structure():
     
     print("   ✅ Log structure is correct")
     print(f"   Example entry: {entry}")
+    
+    # Cleanup
+    os.unlink(db_file)
 
 
 def test_retention_limit():
@@ -51,7 +71,8 @@ def test_retention_limit():
     print("\n🗂️  Testing retention limit enforcement...")
     
     max_logs = 50
-    log_mgr = LogManager(max_logs=max_logs)
+    TestSessionLocal, db_file = get_test_db()
+    log_mgr = LogManager(db_session_factory=TestSessionLocal, max_logs=max_logs)
     
     # Add more logs than the limit
     num_logs = 100
@@ -77,13 +98,17 @@ def test_retention_limit():
     print(f"   ✅ Retention limit enforced: {count}/{max_logs} logs")
     print(f"   First log: {first_log['action']}")
     print(f"   Last log: {last_log['action']}")
+    
+    # Cleanup
+    os.unlink(db_file)
 
 
 def test_log_retrieval():
     """Test log retrieval with limit and offset"""
     print("\n📤 Testing log retrieval...")
     
-    log_mgr = LogManager(max_logs=100)
+    TestSessionLocal, db_file = get_test_db()
+    log_mgr = LogManager(db_session_factory=TestSessionLocal, max_logs=100)
     
     # Add 10 logs
     for i in range(10):
@@ -112,13 +137,17 @@ def test_log_retrieval():
     print(f"   All logs: {len(all_logs)}")
     print(f"   Limited logs (5): {[log['action'] for log in limited_logs]}")
     print(f"   Offset logs (3, skip 2): {[log['action'] for log in offset_logs]}")
+    
+    # Cleanup
+    os.unlink(db_file)
 
 
 def test_log_filtering():
     """Test filtering logs by action and status"""
     print("\n🔍 Testing log filtering...")
     
-    log_mgr = LogManager(max_logs=100)
+    TestSessionLocal, db_file = get_test_db()
+    log_mgr = LogManager(db_session_factory=TestSessionLocal, max_logs=100)
     
     # Add logs with different actions and statuses
     log_mgr.log(action="add_user", payload={"user": "alice"}, status="success")
@@ -143,13 +172,17 @@ def test_log_filtering():
     print(f"   add_user logs: {len(user_logs)}")
     print(f"   error logs: {len(error_logs)}")
     print(f"   success logs: {len(success_logs)}")
+    
+    # Cleanup
+    os.unlink(db_file)
 
 
 def test_default_payload_and_status():
     """Test that payload and status have sensible defaults"""
     print("\n⚙️  Testing default values...")
     
-    log_mgr = LogManager(max_logs=100)
+    TestSessionLocal, db_file = get_test_db()
+    log_mgr = LogManager(db_session_factory=TestSessionLocal, max_logs=100)
     
     # Log with minimal parameters
     entry = log_mgr.log(action="test_action")
@@ -160,6 +193,9 @@ def test_default_payload_and_status():
     print("   ✅ Default values working correctly")
     print(f"   Default payload: {entry['payload']}")
     print(f"   Default status: {entry['status']}")
+    
+    # Cleanup
+    os.unlink(db_file)
 
 
 def test_configurable_retention_from_env():
@@ -169,7 +205,8 @@ def test_configurable_retention_from_env():
     # Set environment variable
     os.environ["MCP_LOG_RETENTION"] = "25"
     
-    log_mgr = LogManager()
+    TestSessionLocal, db_file = get_test_db()
+    log_mgr = LogManager(db_session_factory=TestSessionLocal)
     
     # Add 50 logs
     for i in range(50):
@@ -179,11 +216,12 @@ def test_configurable_retention_from_env():
     count = log_mgr.get_log_count()
     assert count == 25, f"Expected 25 logs from env config, got {count}"
     
-    # Clean up
-    del os.environ["MCP_LOG_RETENTION"]
-    
     print("   ✅ Environment variable configuration working")
     print(f"   Logs retained: {count}")
+    
+    # Clean up
+    del os.environ["MCP_LOG_RETENTION"]
+    os.unlink(db_file)
 
 
 def run_all_tests():
