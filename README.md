@@ -57,15 +57,43 @@ python mcp_client_example.py
 
 ## 📚 API Overview
 
+### API Versioning
+
+The MCP Server supports API versioning to ensure backward compatibility and allow for future enhancements without breaking existing clients.
+
+**Current API Versions:**
+- **v1** (`/api/v1/*`) - Current stable version (recommended)
+- **v2** (`/api/v2/*`) - Placeholder for future extensions
+- **Legacy** (`/mcp/*`) - Original endpoints (deprecated, maintained for backward compatibility)
+
+> **Migration Guide:** All legacy `/mcp/*` endpoints are available at `/api/v1/*`. For example:
+> - `/mcp/state` → `/api/v1/state`
+> - `/mcp/query` → `/api/v1/query`
+> - `/mcp/logs` → `/api/v1/logs`
+> - `/mcp/reset` → `/api/v1/reset`
+
 ### Core Endpoints
+
+#### V1 Endpoints (Recommended)
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/` | GET | Health check |
-| `/mcp/query` | POST | Main action endpoint |
-| `/mcp/state` | GET | Get memory snapshot (supports filtering & pagination) |
-| `/mcp/logs` | GET | View structured action logs with configurable retention |
-| `/mcp/reset` | POST | Reset all memory |
+| `/` | GET | Health check (shows available API versions) |
+| `/api/v1/query` | POST | Main action endpoint |
+| `/api/v1/state` | GET | Get memory snapshot (supports filtering & pagination) |
+| `/api/v1/logs` | GET | View structured action logs with configurable retention |
+| `/api/v1/reset` | POST | Reset all memory |
+
+#### Legacy Endpoints (Deprecated)
+
+| Endpoint | Method | Description | Replacement |
+|----------|--------|-------------|-------------|
+| `/mcp/query` | POST | Main action endpoint | Use `/api/v1/query` |
+| `/mcp/state` | GET | Get memory snapshot | Use `/api/v1/state` |
+| `/mcp/logs` | GET | View action logs | Use `/api/v1/logs` |
+| `/mcp/reset` | POST | Reset all memory | Use `/api/v1/reset` |
+
+> **Note:** Legacy endpoints are maintained for backward compatibility but may be removed in a future major version. Please migrate to versioned endpoints.
 
 ### Available Actions
 
@@ -118,9 +146,11 @@ summary = client.get_summary()
 
 ### Direct HTTP (curl)
 
+**Using V1 API (Recommended):**
+
 ```bash
 # Query endpoint
-curl -X POST http://localhost:8000/mcp/query \
+curl -X POST http://localhost:8000/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{
     "action": "list_users",
@@ -128,7 +158,7 @@ curl -X POST http://localhost:8000/mcp/query \
   }'
 
 # Add task
-curl -X POST http://localhost:8000/mcp/query \
+curl -X POST http://localhost:8000/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{
     "action": "add_task",
@@ -139,18 +169,29 @@ curl -X POST http://localhost:8000/mcp/query \
   }'
 
 # Get state
-curl http://localhost:8000/mcp/state
+curl http://localhost:8000/api/v1/state
 
 # Get filtered state (tasks only, first 10)
-curl http://localhost:8000/mcp/state?entity=tasks&limit=10
+curl http://localhost:8000/api/v1/state?entity=tasks&limit=10
 
 # Get pending tasks
-curl http://localhost:8000/mcp/state?entity=tasks&status=pending
+curl http://localhost:8000/api/v1/state?entity=tasks&status=pending
+
+# Get logs
+curl http://localhost:8000/api/v1/logs?limit=10
+```
+
+**Legacy endpoints (still work but deprecated):**
+
+```bash
+# Legacy endpoints - replace /mcp/ with /api/v1/
+curl http://localhost:8000/mcp/state  # Deprecated
+curl http://localhost:8000/api/v1/state  # Use this instead
 ```
 
 #### State Endpoint Query Parameters
 
-The `/mcp/state` endpoint supports optional query parameters for filtering and pagination:
+The `/api/v1/state` (and legacy `/mcp/state`) endpoint supports optional query parameters for filtering and pagination:
 
 - `entity`: Filter by entity type (`users` | `tasks` | `config` | `logs`)
 - `limit`: Maximum number of items to return
@@ -160,13 +201,13 @@ The `/mcp/state` endpoint supports optional query parameters for filtering and p
 Examples:
 ```bash
 # Get only tasks
-curl http://localhost:8000/mcp/state?entity=tasks
+curl http://localhost:8000/api/v1/state?entity=tasks
 
 # Get first 5 pending tasks
-curl http://localhost:8000/mcp/state?entity=tasks&status=pending&limit=5
+curl http://localhost:8000/api/v1/state?entity=tasks&status=pending&limit=5
 
 # Get users with pagination (skip first 10, return next 20)
-curl http://localhost:8000/mcp/state?entity=users&offset=10&limit=20
+curl http://localhost:8000/api/v1/state?entity=users&offset=10&limit=20
 ```
 
 ### From AI Agent Prompt
@@ -183,12 +224,12 @@ You have access to these tools:
 
 # New way (lean prompt):
 prompt = """
-You can query the MCP server at http://localhost:8000/mcp/query
+You can query the MCP server at http://localhost:8000/api/v1/query
 
 Available actions: list_users, add_task, list_tasks, etc.
 
 Example:
-POST /mcp/query
+POST /api/v1/query
 {
   "action": "list_users",
   "params": {}
@@ -207,7 +248,7 @@ import requests
 
 def get_user_tasks(username):
     response = requests.post(
-        "http://localhost:8000/mcp/query",
+        "http://localhost:8000/api/v1/query",
         json={
             "action": "list_tasks",
             "params": {"assigned_to": username}
@@ -272,6 +313,10 @@ All actions are logged with structured JSON format including:
 View recent actions:
 
 ```bash
+# Using v1 API (recommended)
+curl http://localhost:8000/api/v1/logs?limit=10
+
+# Legacy endpoint (deprecated)
 curl http://localhost:8000/mcp/logs?limit=10
 ```
 
@@ -299,15 +344,21 @@ export MCP_LOG_RETENTION="5000"  # Keep last 5000 log entries
 
 ### Accessing Logs
 
-Via `/mcp/logs` endpoint:
+Via `/api/v1/logs` endpoint (recommended):
 ```bash
 # Get last 10 logs
-curl http://localhost:8000/mcp/logs?limit=10
+curl http://localhost:8000/api/v1/logs?limit=10
 ```
 
-Via `/mcp/state` endpoint:
+Via `/api/v1/state` endpoint with entity filter:
 ```bash
 # Get logs with pagination
+curl "http://localhost:8000/api/v1/state?entity=logs&limit=20&offset=10"
+```
+
+**Legacy endpoints** (deprecated):
+```bash
+curl http://localhost:8000/mcp/logs?limit=10
 curl "http://localhost:8000/mcp/state?entity=logs&limit=20&offset=10"
 ```
 
@@ -455,6 +506,11 @@ python mcp_server.py
 Then include the API key in requests:
 
 ```bash
+# Using v1 API (recommended)
+curl http://localhost:8000/api/v1/state \
+  -H "X-API-Key: your-secret-key-here"
+
+# Legacy endpoint
 curl http://localhost:8000/mcp/state \
   -H "X-API-Key: your-secret-key-here"
 ```
