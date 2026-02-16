@@ -13,9 +13,9 @@ from sqlalchemy.pool import StaticPool
 os.environ["MCP_RATE_LIMIT"] = "1000000/minute"
 
 # Import models and database utilities
-from models import Base
-from database import get_db, init_db
-from mcp_server import app
+from app.models import Base
+from app.database import get_db, init_db
+from app.main import app
 
 
 # Use in-memory SQLite database for testing
