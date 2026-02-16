@@ -43,6 +43,9 @@ export MCP_CORS_ORIGINS="https://yourdomain.com,https://app.yourdomain.com"
 # Configure rate limit (default: 100/minute)
 export MCP_RATE_LIMIT="200/minute"
 
+# Configure log retention limit (default: 1000)
+export MCP_LOG_RETENTION="5000"
+
 python mcp_server.py
 ```
 
@@ -61,7 +64,7 @@ python mcp_client_example.py
 | `/` | GET | Health check |
 | `/mcp/query` | POST | Main action endpoint |
 | `/mcp/state` | GET | Get memory snapshot (supports filtering & pagination) |
-| `/mcp/logs` | GET | View action logs |
+| `/mcp/logs` | GET | View structured action logs with configurable retention |
 | `/mcp/reset` | POST | Reset all memory |
 
 ### Available Actions
@@ -258,10 +261,54 @@ Debug with breakpoints: `F5`
 
 ## 📊 Monitoring & Logs
 
+### Structured Logging
+
+All actions are logged with structured JSON format including:
+- **timestamp**: ISO 8601 timestamp of the action
+- **action**: The action that was performed
+- **payload**: Action parameters and result (truncated to 200 chars)
+- **status**: `success` or `error`
+
 View recent actions:
 
 ```bash
 curl http://localhost:8000/mcp/logs?limit=10
+```
+
+Example log entry:
+```json
+{
+  "timestamp": "2026-02-16T15:14:57.661938",
+  "action": "add_user",
+  "payload": {
+    "params": {"username": "alice"},
+    "result": "{'username': 'alice', 'added': True}"
+  },
+  "status": "success"
+}
+```
+
+### Log Retention
+
+Logs are automatically trimmed to maintain the configured retention limit (default: 1000 entries).
+Configure via environment variable:
+
+```bash
+export MCP_LOG_RETENTION="5000"  # Keep last 5000 log entries
+```
+
+### Accessing Logs
+
+Via `/mcp/logs` endpoint:
+```bash
+# Get last 10 logs
+curl http://localhost:8000/mcp/logs?limit=10
+```
+
+Via `/mcp/state` endpoint:
+```bash
+# Get logs with pagination
+curl "http://localhost:8000/mcp/state?entity=logs&limit=20&offset=10"
 ```
 
 Check server health:
