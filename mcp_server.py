@@ -3,13 +3,14 @@ MCP Server - Model Context Protocol Server
 A persistent backend service for AI agents to reduce context window bloat
 """
 
-from fastapi import FastAPI, HTTPException, Header
+from fastapi import FastAPI, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 import uvicorn
 import logging
+from auth import verify_api_key
 
 # Configure logging
 logging.basicConfig(
@@ -128,7 +129,7 @@ async def root():
     }
 
 @app.get("/mcp/state")
-async def get_state():
+async def get_state(api_key: str = Depends(verify_api_key)):
     """Get complete memory snapshot"""
     try:
         snapshot = memory.get_snapshot()
@@ -143,7 +144,7 @@ async def get_state():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/mcp/query")
-async def query(request: QueryRequest):
+async def query(request: QueryRequest, api_key: str = Depends(verify_api_key)):
     """
     Main query endpoint - handles all agent actions
     
@@ -185,7 +186,7 @@ async def query(request: QueryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/mcp/logs")
-async def get_logs(limit: int = 100):
+async def get_logs(limit: int = 100, api_key: str = Depends(verify_api_key)):
     """Get recent agent action logs"""
     try:
         logs = memory.agent_logs[-limit:]
@@ -199,7 +200,7 @@ async def get_logs(limit: int = 100):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/mcp/reset")
-async def reset_memory():
+async def reset_memory(api_key: str = Depends(verify_api_key)):
     """Reset all memory (use with caution!)"""
     global memory
     logger.warning("Memory reset requested")
