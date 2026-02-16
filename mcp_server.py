@@ -458,7 +458,7 @@ async def handle_add_user(params: Dict[str, Any], db: Session) -> Dict[str, Any]
     user = User(
         username=username,
         role=params.get("role", "user"),
-        metadata=params.get("metadata", {})
+        user_metadata=params.get("metadata", {})
     )
     db.add(user)
     db.commit()
