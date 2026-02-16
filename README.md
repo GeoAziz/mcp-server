@@ -46,7 +46,7 @@ python mcp_client_example.py
 |----------|--------|-------------|
 | `/` | GET | Health check |
 | `/mcp/query` | POST | Main action endpoint |
-| `/mcp/state` | GET | Get memory snapshot |
+| `/mcp/state` | GET | Get memory snapshot (supports filtering & pagination) |
 | `/mcp/logs` | GET | View action logs |
 | `/mcp/reset` | POST | Reset all memory |
 
@@ -123,6 +123,33 @@ curl -X POST http://localhost:8000/mcp/query \
 
 # Get state
 curl http://localhost:8000/mcp/state
+
+# Get filtered state (tasks only, first 10)
+curl http://localhost:8000/mcp/state?entity=tasks&limit=10
+
+# Get pending tasks
+curl http://localhost:8000/mcp/state?entity=tasks&status=pending
+```
+
+#### State Endpoint Query Parameters
+
+The `/mcp/state` endpoint supports optional query parameters for filtering and pagination:
+
+- `entity`: Filter by entity type (`users` | `tasks` | `config` | `logs`)
+- `limit`: Maximum number of items to return
+- `offset`: Number of items to skip (for pagination)
+- `status`: Filter tasks by status (only applies when `entity=tasks`)
+
+Examples:
+```bash
+# Get only tasks
+curl http://localhost:8000/mcp/state?entity=tasks
+
+# Get first 5 pending tasks
+curl http://localhost:8000/mcp/state?entity=tasks&status=pending&limit=5
+
+# Get users with pagination (skip first 10, return next 20)
+curl http://localhost:8000/mcp/state?entity=users&offset=10&limit=20
 ```
 
 ### From AI Agent Prompt

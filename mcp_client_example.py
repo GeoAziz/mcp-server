@@ -37,9 +37,35 @@ class MCPClient:
         result = response.json()
         return result.get("data")
     
-    def get_state(self) -> Dict[str, Any]:
-        """Get complete server memory snapshot"""
-        response = self.session.get(f"{self.base_url}/mcp/state")
+    def get_state(self, entity: str = None, limit: int = None, offset: int = None, status: str = None) -> Dict[str, Any]:
+        """
+        Get server memory snapshot with optional filtering
+        
+        Args:
+            entity: Filter by entity type (users | tasks | config | logs)
+            limit: Maximum number of items to return
+            offset: Number of items to skip for pagination
+            status: Filter tasks by status (only applies when entity=tasks)
+        
+        Returns:
+            Filtered or complete memory snapshot
+        """
+        params = {}
+        if entity:
+            params["entity"] = entity
+        if limit is not None:
+            params["limit"] = limit
+        if offset is not None:
+            params["offset"] = offset
+        if status:
+            params["status"] = status
+        
+        url = f"{self.base_url}/mcp/state"
+        if params:
+            query_string = "&".join(f"{k}={v}" for k, v in params.items())
+            url = f"{url}?{query_string}"
+        
+        response = self.session.get(url)
         response.raise_for_status()
         return response.json().get("data")
     
@@ -165,15 +191,25 @@ def main():
     summary = client.get_summary()
     print(f"   Summary: {json.dumps(summary, indent=2)}")
     
-    # Example 8: Get complete state
-    print("\n8️⃣ Getting complete server state...")
+    # Example 8: Get filtered state (new feature)
+    print("\n8️⃣ Getting filtered state (tasks only, limit 5)...")
+    filtered_state = client.get_state(entity="tasks", limit=5)
+    print(f"   Retrieved {filtered_state['count']} of {filtered_state['total']} tasks")
+    
+    # Example 9: Get filtered state with status filter
+    print("\n9️⃣ Getting pending tasks (filtered state)...")
+    pending_state = client.get_state(entity="tasks", status="pending")
+    print(f"   Found {pending_state['count']} pending tasks")
+    
+    # Example 10: Get complete state
+    print("\n🔟 Getting complete server state...")
     state = client.get_state()
     print(f"   Total users: {state['stats']['total_users']}")
     print(f"   Total tasks: {state['stats']['total_tasks']}")
     print(f"   Total logs: {state['stats']['total_logs']}")
     
-    # Example 9: View recent logs
-    print("\n9️⃣ Viewing recent logs...")
+    # Example 11: View recent logs
+    print("\n1️⃣1️⃣ Viewing recent logs...")
     logs = client.get_logs(limit=5)
     print(f"   Last {len(logs)} actions:")
     for log in logs[-5:]:
