@@ -167,8 +167,16 @@ async def root(request: Request):
         "service": "MCP Server",
         "version": "1.0.0",
         "api_versions": {
-            "v1": "/api/v1",
-            "v2": "/api/v2 (placeholder)"
+            "v1": {
+                "path": "/api/v1",
+                "status": "stable"
+            }
+        },
+        "planned_versions": {
+            "v2": {
+                "path": "/api/v2",
+                "status": "not_implemented"
+            }
         },
         "legacy_endpoints": "/mcp/* (deprecated, use /api/v1/* instead)",
         "timestamp": datetime.utcnow().isoformat()

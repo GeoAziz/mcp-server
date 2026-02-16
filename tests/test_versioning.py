@@ -15,9 +15,17 @@ def test_health_check_shows_api_versions(client):
     
     assert data["status"] == "running"
     assert "api_versions" in data
+    assert "planned_versions" in data
+    
+    # Check v1 is stable
     assert "v1" in data["api_versions"]
-    assert "v2" in data["api_versions"]
-    assert data["api_versions"]["v1"] == "/api/v1"
+    assert data["api_versions"]["v1"]["path"] == "/api/v1"
+    assert data["api_versions"]["v1"]["status"] == "stable"
+    
+    # Check v2 is planned but not implemented
+    assert "v2" in data["planned_versions"]
+    assert data["planned_versions"]["v2"]["path"] == "/api/v2"
+    assert data["planned_versions"]["v2"]["status"] == "not_implemented"
 
 
 def test_v1_state_endpoint(client):
