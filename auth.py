@@ -6,13 +6,15 @@ Provides API key authentication for protected endpoints
 import os
 import secrets
 import logging
+import threading
 from fastapi import Header, HTTPException, status
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Flag to track if we've already logged the warning about disabled auth
+# Thread-safe flag to track if we've already logged the warning about disabled auth
 _auth_disabled_warning_logged = False
+_auth_warning_lock = threading.Lock()
 
 
 def get_api_key_from_env() -> Optional[str]:
@@ -45,13 +47,14 @@ async def verify_api_key(x_api_key: Optional[str] = Header(None)) -> Optional[st
     
     # If no API key is configured, skip authentication
     if expected_api_key is None:
-        # Log warning only once to avoid excessive logging
-        if not _auth_disabled_warning_logged:
-            logger.warning(
-                "MCP_API_KEY environment variable not set - authentication is disabled. "
-                "Set MCP_API_KEY to enable API key authentication."
-            )
-            _auth_disabled_warning_logged = True
+        # Log warning only once to avoid excessive logging (thread-safe)
+        with _auth_warning_lock:
+            if not _auth_disabled_warning_logged:
+                logger.warning(
+                    "MCP_API_KEY environment variable not set - authentication is disabled. "
+                    "Set MCP_API_KEY to enable API key authentication."
+                )
+                _auth_disabled_warning_logged = True
         return None
     
     # Check if X-API-Key header is provided
