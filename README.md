@@ -55,6 +55,55 @@ python mcp_server.py
 python mcp_client_example.py
 ```
 
+## 📖 API Documentation
+
+### Interactive API Documentation
+
+The MCP Server provides auto-generated, interactive API documentation powered by OpenAPI (Swagger) and ReDoc:
+
+**Swagger UI (Interactive):**
+```
+http://localhost:8000/docs
+```
+- Try out API endpoints directly from your browser
+- View request/response examples
+- See detailed parameter descriptions
+
+**ReDoc (Clean Documentation):**
+```
+http://localhost:8000/redoc
+```
+- Clean, searchable API reference
+- Three-panel design for easy navigation
+- Mobile-friendly interface
+
+**OpenAPI Specification (JSON):**
+```
+http://localhost:8000/openapi.json
+```
+- Download the complete OpenAPI 3.1.0 specification
+- Use with code generators (OpenAPI Generator, Swagger Codegen)
+- Import into API testing tools (Postman, Insomnia)
+
+### Quick API Reference
+
+All endpoints return responses in this standard format:
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "message": "Action completed successfully",
+  "timestamp": "2026-02-16T16:00:00.000000"
+}
+```
+
+**Response Fields:**
+- `success` (boolean) - Whether the operation succeeded
+- `data` (any) - Response data (varies by endpoint)
+- `message` (string) - Human-readable status message
+- `timestamp` (string) - ISO 8601 timestamp
+
 ## 📚 API Overview
 
 ### API Versioning
@@ -148,8 +197,10 @@ summary = client.get_summary()
 
 **Using V1 API (Recommended):**
 
+#### User Management
+
 ```bash
-# Query endpoint
+# List all users
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{
@@ -157,28 +208,211 @@ curl -X POST http://localhost:8000/api/v1/query \
     "params": {}
   }'
 
-# Add task
+# Add a new user
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "add_user",
+    "params": {
+      "username": "alice",
+      "role": "admin",
+      "metadata": {
+        "team": "engineering",
+        "location": "San Francisco"
+      }
+    }
+  }'
+
+# Get user details
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "get_user",
+    "params": {
+      "username": "alice"
+    }
+  }'
+
+# Remove a user
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "remove_user",
+    "params": {
+      "username": "alice"
+    }
+  }'
+```
+
+#### Task Management
+
+```bash
+# Create a new task
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Content-Type: application/json" \
   -d '{
     "action": "add_task",
     "params": {
-      "title": "My task",
-      "priority": "high"
+      "title": "Implement API documentation",
+      "description": "Add comprehensive OpenAPI/Swagger docs",
+      "priority": "high",
+      "assigned_to": "alice"
     }
   }'
 
-# Get state
+# List all tasks
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "list_tasks",
+    "params": {}
+  }'
+
+# List tasks for a specific user
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "list_tasks",
+    "params": {
+      "assigned_to": "alice"
+    }
+  }'
+
+# List tasks by status
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "list_tasks",
+    "params": {
+      "status": "pending"
+    }
+  }'
+
+# Update a task
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "update_task",
+    "params": {
+      "task_id": 1,
+      "status": "completed",
+      "priority": "medium"
+    }
+  }'
+
+# Delete a task
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "delete_task",
+    "params": {
+      "task_id": 1
+    }
+  }'
+
+# Search tasks by keyword
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "search_tasks",
+    "params": {
+      "query": "documentation"
+    }
+  }'
+```
+
+#### Configuration Management
+
+```bash
+# Get all configuration
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "get_config",
+    "params": {}
+  }'
+
+# Get specific config value
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "get_config",
+    "params": {
+      "key": "app_name"
+    }
+  }'
+
+# Update configuration
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "update_config",
+    "params": {
+      "key": "app_name",
+      "value": "My MCP Server"
+    }
+  }'
+```
+
+#### Utility Actions
+
+```bash
+# Perform calculations
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "calculate",
+    "params": {
+      "operation": "sum",
+      "numbers": [10, 20, 30, 40]
+    }
+  }'
+
+# Get data summary
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "summarize_data",
+    "params": {}
+  }'
+```
+
+#### State and Logs
+
+```bash
+# Get full state
 curl http://localhost:8000/api/v1/state
 
 # Get filtered state (tasks only, first 10)
-curl http://localhost:8000/api/v1/state?entity=tasks&limit=10
+curl "http://localhost:8000/api/v1/state?entity=tasks&limit=10"
 
 # Get pending tasks
-curl http://localhost:8000/api/v1/state?entity=tasks&status=pending
+curl "http://localhost:8000/api/v1/state?entity=tasks&status=pending"
 
 # Get logs
 curl http://localhost:8000/api/v1/logs?limit=10
+
+# Reset all memory (use with caution!)
+curl -X POST http://localhost:8000/api/v1/reset
+```
+
+#### With Authentication
+
+When `MCP_API_KEY` environment variable is set, include the API key in all requests:
+
+```bash
+# Using API key authentication
+curl -X POST http://localhost:8000/api/v1/query \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-secret-key-here" \
+  -d '{
+    "action": "list_users",
+    "params": {}
+  }'
+
+# Get state with authentication
+curl http://localhost:8000/api/v1/state \
+  -H "X-API-Key: your-secret-key-here"
 ```
 
 **Legacy endpoints (still work but deprecated):**
