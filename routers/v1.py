@@ -1,31 +1,24 @@
 """
-MCP Server - Model Context Protocol Server
-A persistent backend service for AI agents to reduce context window bloat
+API Version 1 Router
+All endpoints from the original MCP Server
 """
 
-from fastapi import FastAPI, HTTPException, Header, Depends, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-import uvicorn
 import logging
 import os
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import Limiter
 from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
+
 from auth import verify_api_key
 from log_manager import LogManager
-from database import get_db, init_db, SessionLocal, reset_db
+from database import get_db, SessionLocal
 from models import User, Task, Config, Log
-from routers import v1, v2
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 # Initialize rate limiter
@@ -33,40 +26,12 @@ limiter = Limiter(key_func=get_remote_address)
 
 # Get rate limit from environment or use default
 RATE_LIMIT = os.getenv("MCP_RATE_LIMIT", "100/minute")
-logger.info(f"Rate limit configured: {RATE_LIMIT}")
-
-# Get CORS origins from environment or use default
-CORS_ORIGINS = os.getenv("MCP_CORS_ORIGINS", "*").split(",")
-logger.info(f"CORS origins configured: {CORS_ORIGINS}")
-
-# Initialize FastAPI app
-app = FastAPI(
-    title="MCP Server",
-    description="Persistent memory and tool server for AI agents",
-    version="1.0.0"
-)
-
-# Add rate limiter to app state
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-# Add CORS middleware
-# Configure via MCP_CORS_ORIGINS environment variable (comma-separated)
-# Example: MCP_CORS_ORIGINS="https://example.com,https://app.example.com"
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["*"],
-)
-
-# Include versioned routers
-app.include_router(v1.router, prefix="/api/v1", tags=["v1"])
-app.include_router(v2.router, prefix="/api/v2", tags=["v2"])
 
 # Initialize LogManager with database session factory
 log_manager = LogManager(db_session_factory=SessionLocal)
+
+# Create v1 router
+router = APIRouter()
 
 # ============================================================================
 # DATABASE HELPER FUNCTIONS
@@ -141,45 +106,11 @@ class QueryResponse(BaseModel):
     message: Optional[str] = None
     timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
 
-class TaskCreate(BaseModel):
-    """Task creation model"""
-    title: str
-    description: Optional[str] = None
-    priority: Optional[str] = "medium"
-    assigned_to: Optional[str] = None
-
-class UserCreate(BaseModel):
-    """User creation model"""
-    username: str
-    role: Optional[str] = "user"
-    metadata: Optional[Dict[str, Any]] = {}
-
 # ============================================================================
-# CORE ENDPOINTS
+# V1 ENDPOINTS
 # ============================================================================
 
-@app.get("/")
-@limiter.limit(RATE_LIMIT)
-async def root(request: Request):
-    """Health check endpoint"""
-    return {
-        "status": "running",
-        "service": "MCP Server",
-        "version": "1.0.0",
-        "api_versions": {
-            "v1": "/api/v1",
-            "v2": "/api/v2 (placeholder)"
-        },
-        "legacy_endpoints": "/mcp/* (deprecated, use /api/v1/* instead)",
-        "timestamp": datetime.utcnow().isoformat()
-    }
-
-# ============================================================================
-# LEGACY ENDPOINTS (DEPRECATED - maintained for backward compatibility)
-# Use /api/v1/* endpoints instead
-# ============================================================================
-
-@app.get("/mcp/state")
+@router.get("/state")
 @limiter.limit(RATE_LIMIT)
 async def get_state(
     request: Request,
@@ -333,7 +264,7 @@ async def get_state(
         logger.error(f"Error getting state: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/mcp/query")
+@router.post("/query")
 @limiter.limit(RATE_LIMIT)
 async def query(request: Request, body: QueryRequest, _api_key: Optional[str] = Depends(verify_api_key), db: Session = Depends(get_db)):
     """
@@ -380,7 +311,7 @@ async def query(request: Request, body: QueryRequest, _api_key: Optional[str] = 
         log_action(body.action, body.params or {}, str(e), status="error", db=db)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/mcp/logs")
+@router.get("/logs")
 @limiter.limit(RATE_LIMIT)
 async def get_logs(request: Request, limit: int = 100, _api_key: Optional[str] = Depends(verify_api_key), db: Session = Depends(get_db)):
     """Get recent agent action logs"""
@@ -395,7 +326,7 @@ async def get_logs(request: Request, limit: int = 100, _api_key: Optional[str] =
         logger.error(f"Error getting logs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/mcp/reset")
+@router.post("/reset")
 @limiter.limit(RATE_LIMIT)
 async def reset_memory(request: Request, _api_key: Optional[str] = Depends(verify_api_key), db: Session = Depends(get_db)):
     """Reset all memory (use with caution!)"""
@@ -749,24 +680,3 @@ async def handle_summarize_data(params: Dict[str, Any], db: Session) -> Dict[str
             }
         }
     }
-
-# ============================================================================
-# STARTUP
-# ============================================================================
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database on startup"""
-    logger.info("Initializing database...")
-    init_db()
-    logger.info("Database initialization complete")
-
-if __name__ == "__main__":
-    logger.info("Starting MCP Server...")
-    uvicorn.run(
-        "mcp_server:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,  # Auto-reload on code changes
-        log_level="info"
-    )
