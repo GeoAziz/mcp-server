@@ -41,9 +41,67 @@ logger.info(f"CORS origins configured: {CORS_ORIGINS}")
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="MCP Server",
-    description="Persistent memory and tool server for AI agents",
-    version="1.0.0"
+    title="MCP Server - Model Context Protocol",
+    description="""
+## Overview
+
+A persistent backend service that reduces AI agent context window bloat by centralizing memory, tools, and logic.
+
+### Key Features
+
+* 🔄 **Persistent Memory** - Store and retrieve user data, tasks, and configurations across sessions
+* 🛠️ **Centralized Tools** - Action-based API for common operations (user/task/config management)
+* 📊 **Structured Logging** - Automatic logging of all actions for observability
+* 🔐 **API Key Authentication** - Optional security via X-API-Key header
+* ⚡ **Rate Limiting** - Built-in protection against abuse
+* 🌐 **CORS Support** - Configurable cross-origin resource sharing
+
+### API Versioning
+
+* **v1** (`/api/v1/*`) - Current stable version (recommended)
+* **v2** (`/api/v2/*`) - Placeholder for future extensions
+* **Legacy** (`/mcp/*`) - Original endpoints (deprecated, maintained for backward compatibility)
+
+### Authentication
+
+If `MCP_API_KEY` environment variable is set, all requests must include the API key:
+
+```
+X-API-Key: your-secret-key-here
+```
+
+### Resources
+
+* [GitHub Repository](https://github.com/GeoAziz/mcp-server)
+* [Quick Start Guide](https://github.com/GeoAziz/mcp-server#quick-start)
+""",
+    version="1.0.0",
+    contact={
+        "name": "MCP Server Team",
+        "url": "https://github.com/GeoAziz/mcp-server",
+    },
+    license_info={
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT",
+    },
+    openapi_tags=[
+        {
+            "name": "v1",
+            "description": "API Version 1 - Current stable endpoints for memory management, actions, and logs"
+        },
+        {
+            "name": "v2",
+            "description": "API Version 2 - Placeholder for future extensions"
+        },
+        {
+            "name": "health",
+            "description": "Health check and system information endpoints"
+        },
+        {
+            "name": "legacy",
+            "description": "Legacy endpoints - Deprecated, use /api/v1/* instead"
+        }
+    ]
 )
 
 # Add rate limiter to app state
@@ -130,35 +188,225 @@ def log_action(action: str, params: Dict[str, Any], result: Any, status: str = "
 # ============================================================================
 
 class QueryRequest(BaseModel):
-    """Standard query request format"""
-    action: str = Field(..., description="Action to perform")
-    params: Optional[Dict[str, Any]] = Field(default={}, description="Action parameters")
+    """
+    Standard query request format for performing actions
+    
+    The query endpoint uses an action-based architecture where you specify
+    an action name and provide the necessary parameters.
+    """
+    action: str = Field(
+        ..., 
+        description="Name of the action to perform",
+        examples=["list_users", "add_task", "search_tasks"]
+    )
+    params: Optional[Dict[str, Any]] = Field(
+        default={}, 
+        description="Parameters for the action (varies by action type)",
+        examples=[
+            {"username": "alice"},
+            {"title": "Build feature", "priority": "high"},
+            {"query": "database"}
+        ]
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "action": "list_users",
+                    "params": {}
+                },
+                {
+                    "action": "add_user",
+                    "params": {
+                        "username": "alice",
+                        "role": "admin"
+                    }
+                },
+                {
+                    "action": "add_task",
+                    "params": {
+                        "title": "Implement API documentation",
+                        "description": "Add OpenAPI/Swagger docs",
+                        "priority": "high",
+                        "assigned_to": "alice"
+                    }
+                },
+                {
+                    "action": "search_tasks",
+                    "params": {
+                        "query": "documentation"
+                    }
+                }
+            ]
+        }
 
 class QueryResponse(BaseModel):
-    """Standard query response format"""
-    success: bool
-    data: Any
-    message: Optional[str] = None
-    timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    """
+    Standard response format for all API endpoints
+    
+    All successful and failed operations return this consistent structure.
+    """
+    success: bool = Field(
+        ..., 
+        description="Whether the operation was successful",
+        examples=[True]
+    )
+    data: Any = Field(
+        ..., 
+        description="Response data (type varies by endpoint)",
+        examples=[
+            {"users": ["alice", "bob"]},
+            {"username": "alice", "added": True}
+        ]
+    )
+    message: Optional[str] = Field(
+        None, 
+        description="Human-readable message about the operation",
+        examples=["Action 'list_users' completed successfully"]
+    )
+    timestamp: str = Field(
+        default_factory=lambda: datetime.utcnow().isoformat(),
+        description="ISO 8601 timestamp when the response was generated",
+        examples=["2026-02-16T16:00:00.000000"]
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "success": True,
+                    "data": ["alice", "bob", "charlie"],
+                    "message": "Action 'list_users' completed successfully",
+                    "timestamp": "2026-02-16T16:00:00.000000"
+                },
+                {
+                    "success": True,
+                    "data": {
+                        "id": 1,
+                        "title": "Implement API documentation",
+                        "description": "Add OpenAPI/Swagger docs",
+                        "priority": "high",
+                        "status": "pending",
+                        "assigned_to": "alice",
+                        "created_at": "2026-02-16T16:00:00.000000",
+                        "updated_at": "2026-02-16T16:00:00.000000"
+                    },
+                    "message": "Action 'add_task' completed successfully",
+                    "timestamp": "2026-02-16T16:00:00.000000"
+                }
+            ]
+        }
 
 class TaskCreate(BaseModel):
-    """Task creation model"""
-    title: str
-    description: Optional[str] = None
-    priority: Optional[str] = "medium"
-    assigned_to: Optional[str] = None
+    """
+    Model for creating a new task via the query endpoint
+    
+    Use with action='add_task' in QueryRequest
+    """
+    title: str = Field(
+        ..., 
+        description="Task title",
+        examples=["Implement user authentication", "Fix database migration bug"]
+    )
+    description: Optional[str] = Field(
+        None, 
+        description="Detailed task description",
+        examples=["Add JWT-based authentication with password hashing"]
+    )
+    priority: Optional[str] = Field(
+        "medium", 
+        description="Task priority level",
+        examples=["low", "medium", "high"]
+    )
+    assigned_to: Optional[str] = Field(
+        None, 
+        description="Username of the assigned user",
+        examples=["alice", "bob"]
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "title": "Implement API documentation",
+                    "description": "Add comprehensive OpenAPI/Swagger documentation",
+                    "priority": "high",
+                    "assigned_to": "alice"
+                }
+            ]
+        }
 
 class UserCreate(BaseModel):
-    """User creation model"""
-    username: str
-    role: Optional[str] = "user"
-    metadata: Optional[Dict[str, Any]] = {}
+    """
+    Model for creating a new user via the query endpoint
+    
+    Use with action='add_user' in QueryRequest
+    """
+    username: str = Field(
+        ..., 
+        description="Unique username for the user",
+        examples=["alice", "bob", "charlie"]
+    )
+    role: Optional[str] = Field(
+        "user", 
+        description="User role (user, admin, etc.)",
+        examples=["user", "admin", "developer"]
+    )
+    metadata: Optional[Dict[str, Any]] = Field(
+        default_factory=dict, 
+        description="Additional user metadata",
+        examples=[{"team": "engineering", "location": "remote"}]
+    )
+    
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "username": "alice",
+                    "role": "admin",
+                    "metadata": {
+                        "team": "engineering",
+                        "location": "San Francisco"
+                    }
+                }
+            ]
+        }
 
 # ============================================================================
 # CORE ENDPOINTS
 # ============================================================================
 
-@app.get("/")
+@app.get(
+    "/",
+    tags=["health"],
+    summary="Health Check",
+    description="""
+    Get server status and available API versions.
+    
+    This endpoint provides basic health check information and shows all available
+    API versions with their paths and status.
+    
+    **No authentication required** - This endpoint is always accessible.
+    
+    **Example Response:**
+    ```json
+    {
+        "status": "running",
+        "service": "MCP Server",
+        "version": "1.0.0",
+        "api_versions": {
+            "v1": {
+                "path": "/api/v1",
+                "status": "stable"
+            }
+        },
+        "timestamp": "2026-02-16T16:00:00.000000"
+    }
+    ```
+    """,
+    response_description="Server status and API version information"
+)
 @limiter.limit(RATE_LIMIT)
 async def root(request: Request):
     """Health check endpoint"""
@@ -187,7 +435,39 @@ async def root(request: Request):
 # Use /api/v1/* endpoints instead
 # ============================================================================
 
-@app.get("/mcp/state")
+@app.get(
+    "/mcp/state",
+    tags=["legacy"],
+    summary="[DEPRECATED] Get Memory State",
+    description="""
+    **⚠️ DEPRECATED:** Use `/api/v1/state` instead.
+    
+    Get memory snapshot with optional filtering and pagination.
+    
+    This legacy endpoint is maintained for backward compatibility but may be removed in a future version.
+    
+    **Query Parameters:**
+    - `entity`: Filter by entity type (`users` | `tasks` | `config` | `logs`)
+    - `limit`: Maximum number of items to return
+    - `offset`: Number of items to skip (for pagination)
+    - `status`: Filter tasks by status (only applies when `entity=tasks`)
+    
+    **Example Usage:**
+    ```bash
+    # Get full state
+    curl http://localhost:8000/mcp/state
+    
+    # Get only tasks
+    curl http://localhost:8000/mcp/state?entity=tasks
+    
+    # Get pending tasks with pagination
+    curl http://localhost:8000/mcp/state?entity=tasks&status=pending&limit=10
+    ```
+    
+    **Migration:** Replace `/mcp/state` with `/api/v1/state`
+    """,
+    deprecated=True
+)
 @limiter.limit(RATE_LIMIT)
 async def get_state(
     request: Request,
@@ -341,7 +621,64 @@ async def get_state(
         logger.error(f"Error getting state: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/mcp/query")
+@app.post(
+    "/mcp/query",
+    tags=["legacy"],
+    summary="[DEPRECATED] Execute Action",
+    description="""
+    **⚠️ DEPRECATED:** Use `/api/v1/query` instead.
+    
+    Main query endpoint - handles all agent actions using an action-based architecture.
+    
+    This legacy endpoint is maintained for backward compatibility but may be removed in a future version.
+    
+    **Supported Actions:**
+    
+    **User Management:**
+    - `list_users` - Get all users
+    - `add_user` - Add new user (params: username, role?, metadata?)
+    - `remove_user` - Remove user (params: username)
+    - `get_user` - Get user details (params: username)
+    
+    **Task Management:**
+    - `list_tasks` - List all tasks (params: status?, assigned_to?)
+    - `add_task` - Create new task (params: title, description?, priority?, assigned_to?)
+    - `update_task` - Update task (params: task_id, title?, description?, priority?, status?, assigned_to?)
+    - `delete_task` - Delete task (params: task_id)
+    - `search_tasks` - Search tasks (params: query)
+    
+    **Configuration:**
+    - `get_config` - Get config values (params: key?)
+    - `update_config` - Update config (params: key, value)
+    
+    **Utilities:**
+    - `calculate` - Perform calculations (params: operation, numbers)
+    - `summarize_data` - Get data summary (params: none)
+    
+    **Example Usage:**
+    ```bash
+    # List all users
+    curl -X POST http://localhost:8000/mcp/query \\
+      -H "Content-Type: application/json" \\
+      -d '{"action": "list_users", "params": {}}'
+    
+    # Add a task
+    curl -X POST http://localhost:8000/mcp/query \\
+      -H "Content-Type: application/json" \\
+      -d '{
+        "action": "add_task",
+        "params": {
+          "title": "Implement feature X",
+          "priority": "high",
+          "assigned_to": "alice"
+        }
+      }'
+    ```
+    
+    **Migration:** Replace `/mcp/query` with `/api/v1/query`
+    """,
+    deprecated=True
+)
 @limiter.limit(RATE_LIMIT)
 async def query(request: Request, body: QueryRequest, _api_key: Optional[str] = Depends(verify_api_key), db: Session = Depends(get_db)):
     """
@@ -388,7 +725,36 @@ async def query(request: Request, body: QueryRequest, _api_key: Optional[str] = 
         log_action(body.action, body.params or {}, str(e), status="error", db=db)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/mcp/logs")
+@app.get(
+    "/mcp/logs",
+    tags=["legacy"],
+    summary="[DEPRECATED] Get Action Logs",
+    description="""
+    **⚠️ DEPRECATED:** Use `/api/v1/logs` instead.
+    
+    Get recent agent action logs with structured information about all operations.
+    
+    This legacy endpoint is maintained for backward compatibility but may be removed in a future version.
+    
+    Each log entry includes:
+    - `timestamp` - When the action occurred (ISO 8601 format)
+    - `action` - The action that was performed
+    - `payload` - Parameters and truncated result
+    - `status` - success or error
+    
+    **Example Usage:**
+    ```bash
+    # Get last 10 logs
+    curl http://localhost:8000/mcp/logs?limit=10
+    
+    # Get last 100 logs
+    curl http://localhost:8000/mcp/logs?limit=100
+    ```
+    
+    **Migration:** Replace `/mcp/logs` with `/api/v1/logs`
+    """,
+    deprecated=True
+)
 @limiter.limit(RATE_LIMIT)
 async def get_logs(request: Request, limit: int = 100, _api_key: Optional[str] = Depends(verify_api_key), db: Session = Depends(get_db)):
     """Get recent agent action logs"""
@@ -403,7 +769,29 @@ async def get_logs(request: Request, limit: int = 100, _api_key: Optional[str] =
         logger.error(f"Error getting logs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/mcp/reset")
+@app.post(
+    "/mcp/reset",
+    tags=["legacy"],
+    summary="[DEPRECATED] Reset Memory",
+    description="""
+    **⚠️ DEPRECATED:** Use `/api/v1/reset` instead.
+    
+    Reset all memory including users, tasks, config, and logs.
+    
+    **⚠️ WARNING:** This operation is destructive and cannot be undone!
+    
+    This legacy endpoint is maintained for backward compatibility but may be removed in a future version.
+    
+    **Example Usage:**
+    ```bash
+    curl -X POST http://localhost:8000/mcp/reset \\
+      -H "X-API-Key: your-key-here"
+    ```
+    
+    **Migration:** Replace `/mcp/reset` with `/api/v1/reset`
+    """,
+    deprecated=True
+)
 @limiter.limit(RATE_LIMIT)
 async def reset_memory(request: Request, _api_key: Optional[str] = Depends(verify_api_key), db: Session = Depends(get_db)):
     """Reset all memory (use with caution!)"""
