@@ -1,6 +1,10 @@
 """
-API Version 1 Router
-All endpoints from the original MCP Server
+⚠️ DEPRECATED - API Version 1 Router (Legacy Location)
+
+This implementation at the root level is part of the legacy monolithic structure.
+Use 'app.routers.v1' instead.
+
+Migration: All functionality is available in app/routers/v1.py
 """
 
 from fastapi import APIRouter, HTTPException, Depends, Request

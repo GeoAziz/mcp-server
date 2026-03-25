@@ -1,4 +1,9 @@
 """
+⚠️ DEPRECATED - Database Configuration (Legacy Location)
+
+Use 'app.database' instead.
+
+Migration: The modular version is in app/database.py
 Database configuration and session management
 """
 

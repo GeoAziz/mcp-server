@@ -487,6 +487,7 @@ async def get_state(
     - offset: Number of items to skip (for pagination)
     - status: Filter tasks by status (only applies when entity=tasks)
     """
+    logger.warning("DEPRECATED: /mcp/state endpoint called. Please migrate to /api/v1/state")
     try:
         # Validate entity parameter if provided
         valid_entities = ["users", "tasks", "config", "logs"]
@@ -696,6 +697,7 @@ async def query(request: Request, body: QueryRequest, _api_key: Optional[str] = 
     - update_config
     - search_tasks
     """
+    logger.warning("DEPRECATED: /mcp/query endpoint called. Please migrate to /api/v1/query")
     try:
         action = body.action
         params = body.params or {}
@@ -758,6 +760,7 @@ async def query(request: Request, body: QueryRequest, _api_key: Optional[str] = 
 @limiter.limit(RATE_LIMIT)
 async def get_logs(request: Request, limit: int = 100, _api_key: Optional[str] = Depends(verify_api_key), db: Session = Depends(get_db)):
     """Get recent agent action logs"""
+    logger.warning("DEPRECATED: /mcp/logs endpoint called. Please migrate to /api/v1/logs")
     try:
         logs = log_manager.get_logs(limit=limit, db=db)
         return QueryResponse(
@@ -795,6 +798,7 @@ async def get_logs(request: Request, limit: int = 100, _api_key: Optional[str] =
 @limiter.limit(RATE_LIMIT)
 async def reset_memory(request: Request, _api_key: Optional[str] = Depends(verify_api_key), db: Session = Depends(get_db)):
     """Reset all memory (use with caution!)"""
+    logger.warning("DEPRECATED: /mcp/reset endpoint called. Please migrate to /api/v1/reset")
     logger.warning("Memory reset requested")
     
     # Delete all data from database

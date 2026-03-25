@@ -1,5 +1,10 @@
 """
-Log Manager - Structured logging with database persistence
+⚠️ DEPRECATED - Log Manager (Legacy Location)
+
+Use 'app.log_manager' instead.
+
+Migration: The modular version is in app/log_manager.py
+Structured logging with database persistence
 """
 
 import logging

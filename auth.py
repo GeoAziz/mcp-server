@@ -1,5 +1,9 @@
 """
-Authentication module for MCP Server
+⚠️ DEPRECATED - Authentication Module (Legacy Location)
+
+Use 'app.auth' instead.
+
+Migration: The modular version is in app/auth.py
 Provides API key authentication for protected endpoints
 """
 

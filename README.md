@@ -1,5 +1,7 @@
 # MCP Server - Model Context Protocol
 
+> **⚠️ Architecture Update**: The monolithic `mcp_server.py` is now deprecated in favor of the modular `app/main.py` structure. Both are functionally identical, but new code should use the modular version. [Migration Guide](#migration-from-legacy-monolithic-structure)
+
 A persistent backend service that reduces AI agent context window bloat by centralizing memory, tools, and logic.
 
 ## 🎯 Problem It Solves
@@ -26,16 +28,17 @@ pip install -r requirements.txt
 
 ### 2. Start the Server
 
+**Production (Recommended):**
 ```bash
-python mcp_cli.py start
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+**Development with auto-reload:**
+```bash
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Server runs at: `http://localhost:8000`
-
-**Legacy entrypoint (monolithic app):**
-```bash
-python mcp_server.py
-```
 
 **Optional Environment Variables:**
 ```bash
@@ -56,8 +59,6 @@ export MCP_RATE_LIMIT="200/minute"
 
 # Configure log retention limit (default: 1000)
 export MCP_LOG_RETENTION="5000"
-
-python mcp_cli.py start
 ```
 
 ### 3. Test with Client
@@ -897,7 +898,57 @@ tests/
 
 All tests use an in-memory SQLite database for speed and isolation. See `tests/README.md` for detailed documentation.
 
-## 📝 License
+## � Migration from Legacy Monolithic Structure
+
+### What Changed
+
+The codebase has been reorganized for clarity and maintainability:
+
+| Old Location | New Location | Status |
+|---|---|---|
+| `mcp_server.py` | `app/main.py` | ⚠️ Deprecated |
+| `routers/v1.py` | `app/routers/v1.py` | ⚠️ Deprecated |
+| `routers/v2.py` | `app/routers/v2.py` | ⚠️ Deprecated |
+| `models.py` | `app/models/` | ⚠️ Deprecated |
+| `auth.py` | `app/auth.py` | ⚠️ Deprecated |
+| `database.py` | `app/database.py` | ⚠️ Deprecated |
+| `log_manager.py` | `app/log_manager.py` | ⚠️ Deprecated |
+
+### What to Update
+
+**Old startup command:**
+```bash
+python mcp_server.py
+```
+
+**New startup command (recommended):**
+```bash
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### API Changes
+- All endpoints remain identical
+- `/mcp/*` routes are now marked `@deprecated` but still functional
+- Prefer `/api/v1/*` routes for new clients
+- `/api/v2/*` is now available for future enhancements
+
+### Error Handling Standardization
+- All `ValueError` exceptions now automatically return HTTP 400 Bad Request
+- No user-facing API changes required
+- Improves consistency across all endpoints
+
+### Benefits of Migration
+- ✅ Cleaner code organization (separation of concerns)
+- ✅ Easier to test individual components
+- ✅ Better scalability for adding new features
+- ✅ Services layer enables code reuse
+
+### No Breaking Changes
+Both implementations work identically. The old files remain functional for backward compatibility and can be phased out at your own pace.
+
+---
+
+## �📝 License
 
 MIT
 

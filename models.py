@@ -1,5 +1,10 @@
 """
-Database models for MCP Server
+⚠️ DEPRECATED - Database Models (Legacy Location)
+
+This file is from the legacy monolithic structure.
+Use 'app.models' instead.
+
+Migration: All models are now in app/models/ package
 """
 
 from sqlalchemy import Column, Integer, String, Text, DateTime, JSON, create_engine

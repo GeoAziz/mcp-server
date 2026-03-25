@@ -1,5 +1,10 @@
 """
-MCP Server - Model Context Protocol Server
+⚠️ DEPRECATED - MCP Server (Monolithic Legacy Implementation)
+
+This is the legacy monolithic implementation. Use 'app.main' instead.
+
+Migration: Run 'python -m uvicorn app.main:app --reload' for the modular implementation.
+
 A persistent backend service for AI agents to reduce context window bloat
 """
 
